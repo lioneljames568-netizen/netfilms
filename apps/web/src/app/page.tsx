@@ -17,11 +17,12 @@ function MovieCard({ movie, saved, onToggle }: { movie: DemoMovie; saved: boolea
     <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-white/[0.06] bg-card">
       <Image src={movie.poster} alt="" fill sizes="(max-width: 640px) 42vw, (max-width: 1024px) 24vw, 16vw" className="object-cover transition duration-500 group-hover:scale-105" unoptimized />
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/15 opacity-80" />
-      {movie.label && <span className="absolute left-2.5 top-2.5 rounded bg-brand px-2 py-1 text-[9px] font-black tracking-widest">{movie.label}</span>}
-      <button onClick={() => onToggle(movie.id)} aria-label={saved ? "Remove from My List" : "Add to My List"} className="absolute right-2.5 top-2.5 grid h-8 w-8 place-items-center rounded-full border border-white/20 bg-black/55 text-white backdrop-blur transition hover:bg-brand">
+      <a href={`/movies/${movie.id}`} aria-label={`View ${movie.title}`} className="absolute inset-0 z-[1]" />
+      {movie.label && <span className="absolute left-2.5 top-2.5 z-10 rounded bg-brand px-2 py-1 text-[9px] font-black tracking-widest">{movie.label}</span>}
+      <button onClick={() => onToggle(movie.id)} aria-label={saved ? "Remove from My List" : "Add to My List"} className="absolute right-2.5 top-2.5 z-10 grid h-8 w-8 place-items-center rounded-full border border-white/20 bg-black/55 text-white backdrop-blur transition hover:bg-brand">
         {saved ? <Check size={15} /> : <Plus size={15} />}
       </button>
-      <div className="absolute inset-x-0 bottom-0 p-3">
+      <div className="absolute inset-x-0 bottom-0 z-10 p-3 pointer-events-none">
         <p className="mb-1 text-[9px] font-bold uppercase tracking-[.18em] text-red-300">{movie.quality} <span className="text-white/40">·</span> {movie.year}</p>
         <h3 className="line-clamp-2 text-sm font-bold leading-snug">{movie.title}</h3>
       </div>
