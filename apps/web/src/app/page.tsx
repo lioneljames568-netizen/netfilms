@@ -57,7 +57,7 @@ export default function HomePage() {
       <div className="container-nf flex h-[72px] items-center justify-between gap-6">
         <Brand />
         <nav className="hidden items-center gap-8 text-[13px] font-semibold text-white/65 md:flex">
-          <a className="text-white" href="#">Home</a><a className="transition hover:text-white" href="/movies">Movies</a><a className="transition hover:text-white" href="/translators">Translators</a><a className="transition hover:text-white" href="/my-list">My List</a>
+          <a className="text-white" href="#">Home</a><a className="transition hover:text-white" href="/movies">Movies</a><a className="transition hover:text-white" href="/series">Series</a><a className="transition hover:text-white" href="/translators">Translators</a><a className="transition hover:text-white" href="/my-list">My List</a>
         </nav>
         <div className="flex items-center gap-2">
           {searchOpen && <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search movies or translators..." className="w-40 rounded-lg border border-white/15 bg-white/[0.06] px-3 py-2 text-xs outline-none focus:border-brand sm:w-64"/>}
@@ -66,7 +66,7 @@ export default function HomePage() {
           <button onClick={() => setMenuOpen(v => !v)} aria-label="Toggle menu" className="grid h-10 w-10 place-items-center rounded-full hover:bg-white/10 md:hidden">{menuOpen ? <X/> : <Menu/>}</button>
         </div>
       </div>
-      {menuOpen && <nav className="container-nf flex flex-col gap-4 border-t border-white/10 py-5 text-sm md:hidden"><a href="#">Home</a><a href="/movies">Movies</a><a href="/translators">Translators</a><a href="/my-list">My List</a></nav>}
+      {menuOpen && <nav className="container-nf flex flex-col gap-4 border-t border-white/10 py-5 text-sm md:hidden"><a href="#">Home</a><a href="/movies">Movies</a><a href="/series">Series</a><a href="/translators">Translators</a><a href="/my-list">My List</a></nav>}
     </header>
 
     <section className="relative min-h-[590px] border-b border-white/[0.06] sm:min-h-[650px]">
