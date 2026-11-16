@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, Menu, X, Play, Plus, Check, ChevronRight, Flame, Clapperboard, Languages, Bookmark, ArrowRight, Sparkles } from "lucide-react";
 import { demoMovies, featuredMovie, type DemoMovie } from "@/lib/catalog";
 
@@ -47,8 +47,9 @@ export default function HomePage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [saved, setSaved] = useState<string[]>([]);
+  useEffect(() => { try { setSaved(JSON.parse(localStorage.getItem("netfilms:watchlist:v1") || "[]")); } catch { setSaved([]); } }, []);
   const filtered = useMemo(() => demoMovies.filter(m => (m.title + m.translator + m.genre).toLowerCase().includes(query.toLowerCase())), [query]);
-  const toggleSaved = (id: string) => setSaved(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]);
+  const toggleSaved = (id: string) => setSaved(current => { const next = current.includes(id) ? current.filter(item => item !== id) : [...current, id]; localStorage.setItem("netfilms:watchlist:v1", JSON.stringify(next)); return next; });
 
   return <main className="min-h-screen overflow-hidden bg-ink pb-16">
     <header className="sticky top-0 z-50 border-b border-white/[0.08] bg-black/90 backdrop-blur-xl">
