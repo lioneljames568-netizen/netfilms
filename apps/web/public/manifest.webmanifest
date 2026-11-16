@@ -1,0 +1,10 @@
+{
+  "name": "NetFilms — Movies in Kinyarwanda",
+  "short_name": "NetFilms",
+  "description": "Discover movies translated into Kinyarwanda.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080808",
+  "theme_color": "#080808",
+  "lang": "rw"
+}
