@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; background: #080808; }
+body { margin: 0; background: #080808; color: #fff; font-family: Arial, Helvetica, sans-serif; }
+button, a { -webkit-tap-highlight-color: transparent; }
+::selection { background: #e50914; color: #fff; }
+.container-nf { width: min(100% - 48px, 1440px); margin-inline: auto; }
+.movie-scroll { scrollbar-width: none; }
+.movie-scroll::-webkit-scrollbar { display: none; }
+.hero-shade { background: linear-gradient(90deg, #080808 0%, rgba(8,8,8,.92) 27%, rgba(8,8,8,.42) 62%, rgba(8,8,8,.08) 100%), linear-gradient(0deg, #080808 0%, transparent 44%); }
+.poster-fallback { background: linear-gradient(145deg, #292929, #111 55%, #2b080b); }
+@media (max-width: 640px) { .container-nf { width: min(100% - 32px, 1440px); } .hero-shade { background: linear-gradient(0deg, #080808 3%, rgba(8,8,8,.82) 50%, rgba(8,8,8,.2) 100%); } }
