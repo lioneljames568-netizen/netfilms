@@ -6,6 +6,8 @@ import { getBrowserSupabase } from "@/lib/supabase-browser";
 type AdminProfile = { user_id: string; display_name: string; role: string; is_active: boolean };
 type Translator = { id: string; full_name: string; slug: string };
 type MovieOption = { id: string; title: string; status: string };
+type SeriesOption = { id: string; title: string; status: string };
+type SeasonOption = { id: string; series_id: string; season_number: number; title: string | null };
 
 export default function AdminPage() {
   const supabase = getBrowserSupabase();
@@ -14,6 +16,22 @@ export default function AdminPage() {
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [translators, setTranslators] = useState<Translator[]>([]);
   const [movieOptions, setMovieOptions] = useState<MovieOption[]>([]);
+  const [seriesOptions, setSeriesOptions] = useState<SeriesOption[]>([]);
+  const [seasonOptions, setSeasonOptions] = useState<SeasonOption[]>([]);
+  const [selectedSeriesId, setSelectedSeriesId] = useState("");
+  const [selectedSeasonId, setSelectedSeasonId] = useState("");
+  const [seriesTitle, setSeriesTitle] = useState("");
+  const [seriesSlug, setSeriesSlug] = useState("");
+  const [seriesDescription, setSeriesDescription] = useState("");
+  const [seriesRightsHolder, setSeriesRightsHolder] = useState("");
+  const [seriesRightsReference, setSeriesRightsReference] = useState("");
+  const [seriesRightsVerified, setSeriesRightsVerified] = useState(false);
+  const [seasonNumber, setSeasonNumber] = useState("1");
+  const [seasonTitle, setSeasonTitle] = useState("");
+  const [episodeNumber, setEpisodeNumber] = useState("1");
+  const [episodeTitle, setEpisodeTitle] = useState("");
+  const [episodeDescription, setEpisodeDescription] = useState("");
+  const [episodeTranslatorId, setEpisodeTranslatorId] = useState("");
   const [selectedMovieId, setSelectedMovieId] = useState("");
   const [mediaKind, setMediaKind] = useState<"video" | "poster" | "backdrop">("poster");
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -42,17 +60,21 @@ export default function AdminPage() {
     const { data, error } = await supabase.from("admin_users").select("user_id,display_name,role,is_active").eq("user_id", user.id).maybeSingle();
     if (error || !data || !data.is_active) { setProfile(null); setNotice("This account is not assigned an active NetFilms administrator role."); setLoading(false); return; }
     setProfile(data);
-    const [movieCount, translatorCount, seriesCount, draftCount, translatorRows, movieRows] = await Promise.all([
+    const [movieCount, translatorCount, seriesCount, draftCount, translatorRows, movieRows, seriesRows, seasonRows] = await Promise.all([
       supabase.from("movies").select("id", { count: "exact", head: true }),
       supabase.from("translators").select("id", { count: "exact", head: true }),
       supabase.from("series").select("id", { count: "exact", head: true }),
       supabase.from("movies").select("id", { count: "exact", head: true }).eq("status", "draft"),
       supabase.from("translators").select("id,full_name,slug").eq("is_active", true).order("full_name"),
       supabase.from("movies").select("id,title,status").order("created_at", { ascending: false }),
+      supabase.from("series").select("id,title,status").order("created_at", { ascending: false }),
+      supabase.from("seasons").select("id,series_id,season_number,title").order("season_number"),
     ]);
     setCounts({ movies: movieCount.count ?? 0, translators: translatorCount.count ?? 0, series: seriesCount.count ?? 0, drafts: draftCount.count ?? 0 });
     setTranslators(translatorRows.data ?? []);
     setMovieOptions(movieRows.data ?? []);
+    setSeriesOptions(seriesRows.data ?? []);
+    setSeasonOptions(seasonRows.data ?? []);
     setLoading(false);
   }
 
@@ -182,6 +204,81 @@ export default function AdminPage() {
     setBusy(false);
   }
 
+
+  async function createSeries(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase || !seriesTitle.trim()) return;
+    if (seriesRightsVerified && (!seriesRightsHolder.trim() || !seriesRightsReference.trim())) {
+      setNotice("Add the series rights holder and authorization reference before confirming rights.");
+      return;
+    }
+    setBusy(true); setNotice("");
+    const cleanSlug = (seriesSlug || seriesTitle).trim().toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const { data, error } = await supabase.from("series").insert({
+      title: seriesTitle.trim(), slug: cleanSlug, description: seriesDescription.trim(),
+      rights_holder: seriesRightsHolder.trim() || null,
+      rights_reference: seriesRightsReference.trim() || null,
+      rights_verified_at: seriesRightsVerified ? new Date().toISOString() : null,
+      status: "draft",
+    }).select("id,title,status").single();
+    if (error || !data) setNotice(error?.message ?? "Could not create series.");
+    else {
+      setSeriesOptions(current => [data, ...current]);
+      setSelectedSeriesId(data.id);
+      setCounts(current => ({ ...current, series: current.series + 1 }));
+      setSeriesTitle(""); setSeriesSlug(""); setSeriesDescription("");
+      setSeriesRightsHolder(""); setSeriesRightsReference(""); setSeriesRightsVerified(false);
+      setNotice("Series draft created. Add its seasons and episodes below.");
+    }
+    setBusy(false);
+  }
+
+  async function createSeason(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase || !selectedSeriesId || !Number.isInteger(Number(seasonNumber)) || Number(seasonNumber) < 1) {
+      setNotice("Choose a series and enter a valid season number.");
+      return;
+    }
+    setBusy(true); setNotice("");
+    const { data, error } = await supabase.from("seasons").insert({
+      series_id: selectedSeriesId, season_number: Number(seasonNumber),
+      title: seasonTitle.trim() || null, status: "draft",
+    }).select("id,series_id,season_number,title").single();
+    if (error || !data) setNotice(error?.message ?? "Could not create season.");
+    else {
+      setSeasonOptions(current => [...current, data].sort((a,b)=>a.season_number-b.season_number));
+      setSelectedSeasonId(data.id); setSeasonNumber(String(Number(seasonNumber)+1)); setSeasonTitle("");
+      setNotice("Season draft created. Add translated episodes to this season.");
+    }
+    setBusy(false);
+  }
+
+  async function createEpisode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase || !selectedSeasonId || !episodeTranslatorId || !episodeTitle.trim() ||
+        !Number.isInteger(Number(episodeNumber)) || Number(episodeNumber) < 1) {
+      setNotice("Choose a season and Kinyarwanda translator, then enter a valid episode number and title.");
+      return;
+    }
+    setBusy(true); setNotice("");
+    const { data, error } = await supabase.from("episodes").insert({
+      season_id: selectedSeasonId, episode_number: Number(episodeNumber),
+      title: episodeTitle.trim(), description: episodeDescription.trim(), status: "draft",
+    }).select("id").single();
+    if (error || !data) { setNotice(error?.message ?? "Could not create episode."); setBusy(false); return; }
+    const credit = await supabase.from("episode_translators").insert({
+      episode_id: data.id, translator_id: episodeTranslatorId, credit_order: 1,
+    });
+    if (credit.error) {
+      await supabase.from("episodes").delete().eq("id", data.id);
+      setNotice("Episode could not be assigned to its translator: " + credit.error.message);
+    } else {
+      setEpisodeNumber(String(Number(episodeNumber)+1)); setEpisodeTitle(""); setEpisodeDescription("");
+      setNotice("Episode draft created with its translator credit. Add authorized media before publishing.");
+    }
+    setBusy(false);
+  }
+
   if (loading) return <main className="min-h-screen bg-ink p-8 text-white"><p className="text-sm text-white/50">Checking administrator access…</p></main>;
 
   return <main className="min-h-screen bg-ink text-white">
@@ -195,7 +292,7 @@ export default function AdminPage() {
       <form onSubmit={addMediaByUrl} className="mt-6 rounded-2xl border border-white/10 bg-panel p-6"><h2 className="text-xl font-black">Add media by URL</h2><p className="mt-2 text-xs leading-5 text-white/45">Use an HTTPS URL for a media asset hosted by a provider you are authorized to use.</p><div className="mt-5 grid gap-4 md:grid-cols-[1fr_220px]"><label className="block text-xs font-semibold text-white/65">HTTPS media URL<input type="url" required value={externalMediaUrl} onChange={e=>setExternalMediaUrl(e.target.value)} placeholder="https://media.example.com/asset.mp4" className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"/></label><label className="block text-xs font-semibold text-white/65">Media type<select value={externalMediaKind} onChange={e=>setExternalMediaKind(e.target.value as "video" | "poster" | "backdrop")} className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"><option value="poster">Poster image</option><option value="backdrop">Backdrop image</option><option value="video">Movie video</option></select></label></div><button disabled={busy || !selectedMovieId} className="mt-5 rounded-lg border border-white/15 px-5 py-3 text-xs font-bold disabled:opacity-40">Save URL reference</button></form>
       <form onSubmit={uploadMedia} className="mt-6 rounded-2xl border border-white/10 bg-panel p-6"><h2 className="text-xl font-black">Upload movie media to Cloudflare R2</h2><p className="mt-2 text-xs leading-5 text-white/45">Files upload directly from your browser to R2 using a short-lived signed URL. R2 credentials never reach the browser.</p><div className="mt-5 grid gap-4 md:grid-cols-3"><label className="block text-xs font-semibold text-white/65">Movie<select required value={selectedMovieId} onChange={e=>setSelectedMovieId(e.target.value)} className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"><option value="">Choose movie</option>{movieOptions.map(movie=><option key={movie.id} value={movie.id}>{movie.title} ({movie.status})</option>)}</select></label><label className="block text-xs font-semibold text-white/65">Media type<select value={mediaKind} onChange={e=>setMediaKind(e.target.value as "video" | "poster" | "backdrop")} className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"><option value="poster">Poster image</option><option value="backdrop">Backdrop image</option><option value="video">Movie video</option></select></label><label className="block text-xs font-semibold text-white/65">Choose file<input name="media-file" required type="file" accept={mediaKind==="video" ? "video/mp4,video/webm,video/quicktime" : "image/jpeg,image/png,image/webp"} className="mt-2 block w-full text-xs text-white/60 file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white"/></label></div><div className="mt-5 flex flex-wrap items-center gap-4"><button disabled={busy || !movieOptions.length} className="rounded-lg bg-brand px-5 py-3 text-xs font-bold disabled:opacity-40">{busy ? "Uploading…" : "Upload and attach media"}</button>{uploadProgress > 0 && <span className="text-xs tabular-nums text-white/60">{uploadProgress}%</span>}</div>{uploadProgress > 0 && <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-brand transition-all" style={{width:`${uploadProgress}%`}}/></div>}{uploadNotice && <p role="status" className="mt-4 text-xs leading-5 text-white/60">{uploadNotice}</p>}</form>
       {notice && <p role="status" className="mt-6 rounded-lg border border-white/10 bg-panel p-4 text-sm text-white/70">{notice}</p>}
-      <p className="mt-8 text-xs leading-6 text-white/35">Publishing is intentionally not available in this first admin phase. The next phase adds rights verification, secure Cloudflare R2 uploads, and guarded publishing.</p></>}
+      <p className="mt-8 text-xs leading-6 text-white/35">Publishing remains intentionally disabled until the complete review and launch configuration is ready.</p></>}
     </section>
   </main>;
 }
