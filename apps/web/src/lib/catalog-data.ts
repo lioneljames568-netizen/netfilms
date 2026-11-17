@@ -56,6 +56,7 @@ function asArray<T>(value: unknown): T[] {
 export async function getPublishedMovies(): Promise<MovieRecord[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
+
   const { data, error } = await supabase
     .from("movies")
     .select(`
@@ -64,22 +65,70 @@ export async function getPublishedMovies(): Promise<MovieRecord[]> {
       movie_translators(translators(id, slug, full_name)),
       movie_genres(genres(name)),
       movie_media(kind, media_assets(external_url)),
-      movie_parts(part_number, movie_collections(id, title, total_parts, movie_parts(movie_id, part_number, movies(id, slug, title, status))))
+      movie_parts(part_number, collection_id, movie_collections(id, title, total_parts))
     `)
     .eq("status", "published")
     .order("published_at", { ascending: false, nullsFirst: false });
+
   if (error) {
     console.error("NetFilms catalog query failed:", error.message);
     return [];
   }
-  return (data ?? []).map((row) => {
+
+  const rows = data ?? [];
+  const collectionIds = Array.from(new Set(rows.flatMap((row) =>
+    asArray<{ collection_id: string }>((row as unknown as Record<string, unknown>).movie_parts)
+      .map((part) => part.collection_id)
+      .filter(Boolean),
+  )));
+
+  // Fetch collection siblings separately to avoid a cyclic PostgREST embed
+  // (movies -> movie_parts -> movie_collections -> movie_parts -> movies).
+  const siblingsByCollection = new Map<string, { id: string; slug: string; title: string; part_number: number }[]>();
+  if (collectionIds.length > 0) {
+    const { data: siblingRows, error: siblingError } = await supabase
+      .from("movie_parts")
+      .select("collection_id, part_number, movies!inner(id, slug, title, status)")
+      .in("collection_id", collectionIds)
+      .eq("movies.status", "published")
+      .order("part_number", { ascending: true });
+
+    if (siblingError) {
+      console.error("NetFilms movie-part navigation query failed:", siblingError.message);
+    } else {
+      for (const rawPart of siblingRows ?? []) {
+        const part = rawPart as unknown as {
+          collection_id: string;
+          part_number: number;
+          movies: unknown;
+        };
+        const publishedMovies = asArray<{ id: string; slug: string; title: string; status: string }>(part.movies)
+          .filter((candidate) => candidate.status === "published")
+          .map((candidate) => ({
+            id: candidate.id,
+            slug: candidate.slug,
+            title: candidate.title,
+            part_number: part.part_number,
+          }));
+        const existing = siblingsByCollection.get(part.collection_id) ?? [];
+        siblingsByCollection.set(part.collection_id, [...existing, ...publishedMovies]);
+      }
+    }
+  }
+
+  return rows.map((row) => {
     const item = row as unknown as Record<string, unknown>;
     const translatorLinks = asArray<{ translators: unknown }>(item.movie_translators);
     const genreLinks = asArray<{ genres: unknown }>(item.movie_genres);
     const mediaLinks = asArray<{ kind: string; media_assets: unknown }>(item.movie_media);
-    const partLinks = asArray<{ part_number: number; movie_collections: unknown }>(item.movie_parts);
+    const partLinks = asArray<{
+      part_number: number;
+      collection_id: string;
+      movie_collections: unknown;
+    }>(item.movie_parts);
     const poster = mediaLinks.find((link) => link.kind === "poster");
     const posterAsset = poster ? asArray<{ external_url: string | null }>(poster.media_assets)[0] : null;
+
     return {
       id: String(item.id),
       slug: String(item.slug),
@@ -96,20 +145,13 @@ export async function getPublishedMovies(): Promise<MovieRecord[]> {
       genres: genreLinks.flatMap((link) => asArray<{ name: string }>(link.genres).map((genre) => genre.name)),
       poster_url: posterAsset?.external_url ?? null,
       parts: partLinks.map((link) => {
-        const collection = asArray<{ id: string; title: string; total_parts: number | null; movie_parts: unknown }>(link.movie_collections)[0];
-        const siblings = collection
-          ? asArray<{ movie_id: string; part_number: number; movies: unknown }>(collection.movie_parts).flatMap((part) =>
-              asArray<{ id: string; slug: string; title: string; status: string }>(part.movies)
-                .filter((candidate) => candidate.status === "published")
-                .map((candidate) => ({ id: candidate.id, slug: candidate.slug, title: candidate.title, part_number: part.part_number })),
-            ).sort((a, b) => a.part_number - b.part_number)
-          : [];
+        const collection = asArray<{ id: string; title: string; total_parts: number | null }>(link.movie_collections)[0];
         return {
           part_number: link.part_number,
-          collection_id: collection?.id ?? "",
+          collection_id: link.collection_id,
           collection_title: collection?.title ?? null,
           total_parts: collection?.total_parts ?? null,
-          siblings,
+          siblings: siblingsByCollection.get(link.collection_id) ?? [],
         };
       }),
     } satisfies MovieRecord;
