@@ -1,0 +1,41 @@
+name: NetFilms CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: apps/web
+        run: npm install
+      - name: Typecheck frontend
+        working-directory: apps/web
+        run: npm run typecheck
+      - name: Build frontend
+        working-directory: apps/web
+        run: npm run build
+
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend dependencies
+        working-directory: apps/api
+        run: pip install -r requirements.txt
+      - name: Compile backend
+        working-directory: apps/api
+        run: python -m compileall -q app
