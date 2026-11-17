@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.routers.public import router as public_router
+from app.routers.admin_media import router as admin_media_router
 
 settings = get_settings()
 app = FastAPI(
@@ -33,3 +34,4 @@ async def health():
 
 
 app.include_router(public_router, prefix=settings.api_prefix, tags=["public catalogue"])
+app.include_router(admin_media_router, prefix=settings.api_prefix)
