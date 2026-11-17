@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useRef } from "react";
-import { MediaPlayer, MediaProvider } from "@vidstack/react";
+import { MediaPlayer, MediaProvider, type MediaPlayerInstance } from "@vidstack/react";
 import { DefaultVideoLayout, defaultLayoutIcons } from "@vidstack/react/player/layouts/default";
 
 const HISTORY_KEY = "netfilms:watch-history:v1";
 
 export function NetFilmsPlayer({ src, title, contentId }: { src: string; title: string; contentId: string }) {
-  const lastSavedAt = useRef(0);
+  const lastSavedAt = useRef(0);\n  const player = useRef<MediaPlayerInstance>(null);
   const saveProgress = useCallback((currentTime: number, duration: number) => {
     if (!Number.isFinite(currentTime) || !Number.isFinite(duration) || duration <= 0) return;
     const now = Date.now();
@@ -20,7 +20,7 @@ export function NetFilmsPlayer({ src, title, contentId }: { src: string; title: 
     } catch { /* Playback must continue if local storage is unavailable. */ }
   }, [contentId, title]);
 
-  const clearProgress = useCallback(() => {
+  const restoreProgress = useCallback(() => {\n    try {\n      const stored = JSON.parse(localStorage.getItem(HISTORY_KEY) || "{}") as Record<string, { currentTime?: number; duration?: number }>;\n      const saved = stored[contentId];\n      if (player.current && saved && typeof saved.currentTime === "number" && saved.currentTime > 0 && saved.currentTime < (saved.duration || Infinity) - 5) {\n        player.current.currentTime = saved.currentTime;\n      }\n    } catch { /* Start from the beginning when saved progress is unavailable. */ }\n  }, [contentId]);\n\n  const clearProgress = useCallback(() => {
     try {
       const stored = JSON.parse(localStorage.getItem(HISTORY_KEY) || "{}") as Record<string, unknown>;
       delete stored[contentId];
