@@ -121,3 +121,66 @@ async def get_movie_playback(slug: str):
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Could not prepare secure video playback.") from exc
     return {"title": movie["title"], "src": signed_url, "content_type": video_asset.get("content_type")}
+
+@router.get("/episodes/{episode_id}/playback")
+async def get_episode_playback(episode_id: str):
+    rows = await select_rows(
+        "episodes",
+        {
+            "select": "id,title,status,episode_translators(translator_id),episode_media(kind,media_assets(kind,external_url,r2_object_key,content_type)),seasons(id,status,series_id,series(id,status,rights_holder,rights_reference,rights_verified_at))",
+            "id": f"eq.{episode_id}",
+            "status": "eq.published",
+            "limit": "1",
+        },
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="This episode is not available.")
+    episode = rows[0]
+    season = _first(episode.get("seasons"))
+    series = _first(season.get("series")) if season else None
+    if not season or season.get("status") != "published" or not series or series.get("status") != "published":
+        raise HTTPException(status_code=404, detail="This episode is not available.")
+    if not (series.get("rights_holder") and series.get("rights_reference") and series.get("rights_verified_at")):
+        raise HTTPException(status_code=403, detail="Distribution rights have not been verified for this series.")
+    if not episode.get("episode_translators"):
+        raise HTTPException(status_code=403, detail="A Kinyarwanda translator credit is required before playback.")
+
+    video_asset = None
+    for link in episode.get("episode_media") or []:
+        if link.get("kind") == "video":
+            asset = _first(link.get("media_assets"))
+            if asset and asset.get("kind") == "video":
+                video_asset = asset
+                break
+    if not video_asset:
+        raise HTTPException(status_code=404, detail="A video source has not been added to this episode yet.")
+
+    external_url = video_asset.get("external_url")
+    if external_url:
+        if not str(external_url).startswith("https://"):
+            raise HTTPException(status_code=403, detail="The configured video source must use HTTPS.")
+        return {"title": episode["title"], "src": external_url, "content_type": video_asset.get("content_type")}
+
+    object_key = video_asset.get("r2_object_key")
+    settings = get_settings()
+    if not object_key or not all((settings.r2_account_id, settings.r2_access_key_id, settings.r2_secret_access_key, settings.r2_bucket_name)):
+        raise HTTPException(status_code=503, detail="Secure video delivery is not configured.")
+    storage = boto3.client(
+        "s3",
+        endpoint_url=f"https://{settings.r2_account_id}.r2.cloudflarestorage.com",
+        aws_access_key_id=settings.r2_access_key_id,
+        aws_secret_access_key=settings.r2_secret_access_key,
+        region_name="auto",
+        config=BotoConfig(signature_version="s3v4"),
+    )
+    try:
+        signed_url = await asyncio.to_thread(
+            storage.generate_presigned_url,
+            "get_object",
+            Params={"Bucket": settings.r2_bucket_name, "Key": object_key},
+            ExpiresIn=14400,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Could not prepare secure episode playback.") from exc
+    return {"title": episode["title"], "src": signed_url, "content_type": video_asset.get("content_type")}
+
