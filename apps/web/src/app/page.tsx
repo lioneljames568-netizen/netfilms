@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { Search, Menu, X, Play, Plus, Check, ChevronRight, Flame, Clapperboard, Languages, Bookmark, ArrowRight, Sparkles } from "lucide-react";
-import { demoMovies, featuredMovie, type DemoMovie } from "@/lib/catalog";
+import type { DemoMovie } from "@/lib/catalog";
 
 function Brand() {
   return <a href="#" aria-label="NetFilms home" className="flex items-center gap-2.5">
@@ -15,7 +15,7 @@ function Brand() {
 function MovieCard({ movie, saved, onToggle }: { movie: DemoMovie; saved: boolean; onToggle: (id: string) => void }) {
   return <article className="group min-w-0">
     <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-white/[0.06] bg-card">
-      <Image src={movie.poster} alt="" fill sizes="(max-width: 640px) 42vw, (max-width: 1024px) 24vw, 16vw" className="object-cover transition duration-500 group-hover:scale-105" unoptimized />
+      {movie.poster ? <Image src={movie.poster} alt="" fill sizes="(max-width: 640px) 42vw, (max-width: 1024px) 24vw, 16vw" className="object-cover transition duration-500 group-hover:scale-105" unoptimized /> : <div className="poster-fallback absolute inset-0" />}
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/15 opacity-80" />
       <a href={`/movies/${movie.id}`} aria-label={`View ${movie.title}`} className="absolute inset-0 z-[1]" />
       {movie.label && <span className="absolute left-2.5 top-2.5 z-10 rounded bg-brand px-2 py-1 text-[9px] font-black tracking-widest">{movie.label}</span>}
@@ -32,7 +32,7 @@ function MovieCard({ movie, saved, onToggle }: { movie: DemoMovie; saved: boolea
 }
 
 function MovieRow({ title, subtitle, icon, movies, saved, onToggle }: { title: string; subtitle: string; icon: React.ReactNode; movies: DemoMovie[]; saved: string[]; onToggle: (id: string) => void }) {
-  return <section className="container-nf mt-12">
+  if (!movies.length) return null;\n  return <section className="container-nf mt-12">
     <div className="mb-5 flex items-end justify-between gap-4">
       <div><div className="mb-2 flex items-center gap-2 text-brand">{icon}<span className="text-[10px] font-bold uppercase tracking-[.2em]">{subtitle}</span></div><h2 className="text-2xl font-black tracking-tight sm:text-[28px]">{title}</h2></div>
       <a href="/movies" className="flex shrink-0 items-center gap-1 text-xs font-semibold text-white/55 transition hover:text-white">View all <ChevronRight size={15}/></a>
@@ -75,24 +75,24 @@ export default function HomePage() {
       <div className="container-nf relative flex min-h-[590px] items-end pb-14 pt-24 sm:min-h-[650px] sm:items-center sm:pb-10">
         <div className="max-w-[610px]">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-brand/40 bg-brand/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.18em] text-red-200"><Sparkles size={13}/> Featured collection</div>
-          <p className="mb-3 text-xs font-bold tracking-[.25em] text-brand">NETFILMS ORIGINAL EXPERIENCE</p>
-          <h1 className="max-w-[600px] text-5xl font-black leading-[.98] tracking-[-.055em] sm:text-7xl">{featuredMovie.title}</h1>
-          <div className="mt-5 flex flex-wrap items-center gap-3 text-[11px] font-semibold text-white/65"><span>{featuredMovie.year}</span><span className="h-1 w-1 rounded-full bg-brand"/><span>{featuredMovie.genre}</span><span className="h-1 w-1 rounded-full bg-brand"/><span className="text-white">{featuredMovie.quality}</span><span className="rounded border border-white/20 px-2 py-1 text-[9px] tracking-wider">KINYARWANDA</span></div>
-          <p className="mt-5 max-w-[470px] text-sm leading-7 text-white/65">{featuredMovie.description}</p>
-          <p className="mt-4 text-xs text-white/55">Translated by <strong className="text-white">{featuredMovie.translator}</strong></p>
+          <p className="mb-3 text-xs font-bold tracking-[.25em] text-brand">KINYARWANDA MOVIE PLATFORM</p>
+          <h1 className="max-w-[600px] text-5xl font-black leading-[.98] tracking-[-.055em] sm:text-7xl">Stories in your language</h1>
+          <div className="mt-5 flex flex-wrap items-center gap-3 text-[11px] font-semibold text-white/65"><span>Kinyarwanda</span><span className="h-1 w-1 rounded-full bg-brand"/><span>Movies</span><span className="h-1 w-1 rounded-full bg-brand"/><span className="text-white">HD</span><span className="rounded border border-white/20 px-2 py-1 text-[9px] tracking-wider">KINYARWANDA</span></div>
+          <p className="mt-5 max-w-[470px] text-sm leading-7 text-white/65">Discover films and series translated into Kinyarwanda, with the translator credited on every published title.</p>
+          <p className="mt-4 text-xs text-white/55">Translated by <strong className="text-white">Our translators</strong></p>
           <div className="mt-7 flex flex-wrap gap-3">
             <a href="/movies" className="inline-flex items-center gap-2 rounded-lg bg-brand px-6 py-3.5 text-sm font-extrabold shadow-lg shadow-brand/20 transition hover:bg-brand-dark"><Play size={17} fill="currentColor"/> Explore movies</a>
             <a href="/translators" className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/[0.07] px-6 py-3.5 text-sm font-bold backdrop-blur transition hover:bg-white/15"><Languages size={17}/> Meet translators</a>
           </div>
-          <p className="mt-5 text-[10px] text-white/35">Featured artwork and catalogue entries are demonstration placeholders.</p>
+          <p className="mt-5 text-[10px] text-white/35">Only verified, authorized titles will appear in the public catalogue.</p>
         </div>
       </div>
       <div className="absolute bottom-0 right-0 hidden gap-2 p-8 lg:flex"><span className="h-1 w-9 rounded-full bg-brand"/><span className="h-1 w-4 rounded-full bg-white/30"/><span className="h-1 w-4 rounded-full bg-white/30"/></div>
     </section>
 
     {query && <section className="container-nf mt-8"><p className="mb-4 text-sm text-white/55">Search results for <strong className="text-white">“{query}”</strong></p>{filtered.length ? <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">{filtered.map(movie => <MovieCard key={movie.id} movie={movie} saved={saved.includes(movie.id)} onToggle={toggleSaved}/>)}</div> : <p className="rounded-xl border border-white/10 p-8 text-center text-sm text-white/50">No matches yet. Try another title or translator.</p>}</section>}
-    <MovieRow title="Trending this week" subtitle="Popular right now" icon={<Flame size={15}/>} movies={demoMovies.slice(0, 6)} saved={saved} onToggle={toggleSaved}/>
-    <MovieRow title="Fresh from the studio" subtitle="Recently added" icon={<Clapperboard size={15}/>} movies={[...demoMovies].reverse()} saved={saved} onToggle={toggleSaved}/>
+    {catalogLoading ? <div className="container-nf mt-12 text-sm text-white/40">Loading the published catalogue…</div> : !movies.length ? <div className="container-nf mt-12 rounded-2xl border border-dashed border-white/15 p-10 text-center"><h2 className="text-xl font-bold">The catalogue is getting ready</h2><p className="mt-2 text-sm text-white/45">New authorized Kinyarwanda titles will appear here as soon as they are published.</p></div> : null}\n    <MovieRow title="Trending this week" subtitle="Popular right now" icon={<Flame size={15}/>} movies={movies.filter(movie => movie.label === "TRENDING").slice(0, 6)} saved={saved} onToggle={toggleSaved}/>
+    <MovieRow title="Fresh from the studio" subtitle="Recently added" icon={<Clapperboard size={15}/>} movies={[...movies].reverse().slice(0, 6)} saved={saved} onToggle={toggleSaved}/>
 
     <section className="container-nf mt-16">
       <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#111] p-7 sm:p-10">
