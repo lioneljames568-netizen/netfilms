@@ -74,12 +74,14 @@ export default function AdminPage() {
       supabase.from("movies").select("id,title,status").order("created_at", { ascending: false }),
       supabase.from("series").select("id,title,status").order("created_at", { ascending: false }),
       supabase.from("seasons").select("id,series_id,season_number,title").order("season_number"),
+      supabase.from("episodes").select("id,season_id,episode_number,title").order("episode_number"),
     ]);
     setCounts({ movies: movieCount.count ?? 0, translators: translatorCount.count ?? 0, series: seriesCount.count ?? 0, drafts: draftCount.count ?? 0 });
     setTranslators(translatorRows.data ?? []);
     setMovieOptions(movieRows.data ?? []);
     setSeriesOptions(seriesRows.data ?? []);
-    setSeasonOptions(seasonRows.data ?? []);\n    setEpisodeOptions(episodeRows.data ?? []);
+    setSeasonOptions(seasonRows.data ?? []);
+    setEpisodeOptions(episodeRows.data ?? []);
     setLoading(false);
   }
 
@@ -269,7 +271,7 @@ export default function AdminPage() {
     const { data, error } = await supabase.from("episodes").insert({
       season_id: selectedSeasonId, episode_number: Number(episodeNumber),
       title: episodeTitle.trim(), description: episodeDescription.trim(), status: "draft",
-    }).select("id").single();
+    }).select("id,season_id,episode_number,title").single();
     if (error || !data) { setNotice(error?.message ?? "Could not create episode."); setBusy(false); return; }
     const credit = await supabase.from("episode_translators").insert({
       episode_id: data.id, translator_id: episodeTranslatorId, credit_order: 1,
@@ -278,6 +280,8 @@ export default function AdminPage() {
       await supabase.from("episodes").delete().eq("id", data.id);
       setNotice("Episode could not be assigned to its translator: " + credit.error.message);
     } else {
+      setEpisodeOptions(current => [...current, data].sort((a,b)=>a.episode_number-b.episode_number));
+      setSelectedEpisodeId(data.id);
       setEpisodeNumber(String(Number(episodeNumber)+1)); setEpisodeTitle(""); setEpisodeDescription("");
       setNotice("Episode draft created with its translator credit. Add authorized media before publishing.");
     }
