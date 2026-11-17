@@ -9,6 +9,9 @@ export default function MoviesPage() {
   const [query, setQuery] = useState("");
   const [genre, setGenre] = useState("All");
   const [sort, setSort] = useState("Newest");
+  const [year, setYear] = useState("All");
+  const [translator, setTranslator] = useState("All");
+  const [contentType, setContentType] = useState("All");
   const [allMovies, setAllMovies] = useState<DemoMovie[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -21,15 +24,20 @@ export default function MoviesPage() {
   }, []);
 
   const genres = ["All", ...Array.from(new Set(allMovies.map((movie) => movie.genre)))];
+  const years = ["All", ...Array.from(new Set(allMovies.map((movie) => movie.year).filter(Boolean))).sort((a, b) => b - a).map(String)];
+  const translators = ["All", ...Array.from(new Set(allMovies.map((movie) => movie.translator.split(", ").filter(Boolean)).flat())).sort((a, b) => a.localeCompare(b))];
   const movies = useMemo(() => {
     const result = allMovies.filter((movie) =>
       (genre === "All" || movie.genre === genre) &&
+      (year === "All" || String(movie.year) === year) &&
+      (translator === "All" || movie.translator.split(", ").includes(translator)) &&
+      (contentType === "All" || (contentType === "Parts" ? movie.kind === "part" : movie.kind !== "part")) &&
       (movie.title + " " + movie.translator).toLowerCase().includes(query.toLowerCase())
     );
     return sort === "A–Z"
       ? [...result].sort((a, b) => a.title.localeCompare(b.title))
-      : [...result].sort((a, b) => b.year - a.year);
-  }, [allMovies, genre, query, sort]);
+      : [...result].sort((a, b) => sort === "Oldest" ? a.year - b.year : b.year - a.year);
+  }, [allMovies, genre, query, sort, year, translator, contentType]);
 
   return <main className="min-h-screen bg-ink text-white">
     <header className="border-b border-white/10 bg-black"><div className="container-nf flex h-16 items-center justify-between"><a href="/" className="text-xl font-black">NET<span className="text-brand">FILMS</span></a><a href="/" className="text-sm text-white/60 hover:text-white">← Home</a></div></header>
@@ -40,7 +48,10 @@ export default function MoviesPage() {
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
         <label className="flex flex-1 items-center gap-3 rounded-xl border border-white/10 bg-panel px-4"><Search size={17} className="text-white/40"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search titles or translators" className="h-12 w-full bg-transparent text-sm outline-none"/></label>
         <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-panel px-3"><SlidersHorizontal size={15} className="text-white/45"/><select value={genre} onChange={e=>setGenre(e.target.value)} className="h-12 bg-transparent pr-2 text-sm outline-none">{genres.map(g=><option key={g} value={g} className="bg-panel">{g}</option>)}</select></label>
-        <select value={sort} onChange={e=>setSort(e.target.value)} aria-label="Sort movies" className="h-12 rounded-xl border border-white/10 bg-panel px-4 text-sm outline-none"><option>Newest</option><option>A–Z</option></select>
+        <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-panel px-3"><span className="text-xs text-white/40">Year</span><select value={year} onChange={e=>setYear(e.target.value)} aria-label="Filter by year" className="h-12 bg-transparent pr-2 text-sm outline-none">{years.map(value=><option key={value} value={value} className="bg-panel">{value}</option>)}</select></label>
+        <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-panel px-3"><span className="text-xs text-white/40">Translator</span><select value={translator} onChange={e=>setTranslator(e.target.value)} aria-label="Filter by translator" className="h-12 max-w-36 bg-transparent pr-2 text-sm outline-none">{translators.map(value=><option key={value} value={value} className="bg-panel">{value}</option>)}</select></label>
+        <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-panel px-3"><span className="text-xs text-white/40">Type</span><select value={contentType} onChange={e=>setContentType(e.target.value)} aria-label="Filter by content type" className="h-12 bg-transparent pr-2 text-sm outline-none"><option value="All" className="bg-panel">All</option><option value="Standalone" className="bg-panel">Standalone</option><option value="Parts" className="bg-panel">Movie parts</option></select></label>
+        <select value={sort} onChange={e=>setSort(e.target.value)} aria-label="Sort movies" className="h-12 rounded-xl border border-white/10 bg-panel px-4 text-sm outline-none"><option>Newest</option><option>Oldest</option><option>A–Z</option></select>
       </div>
       <p className="mb-5 mt-8 text-xs text-white/40">{loading ? "Loading published titles…" : `${movies.length} published titles`}</p>
       {loading ? <div className="rounded-xl border border-white/10 p-12 text-center text-sm text-white/50">Loading the published catalogue…</div> : movies.length ? <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">{movies.map(movie=><article key={movie.id} className="min-w-0"><a href={`/movies/${movie.id}`}><div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-card poster-fallback">{movie.poster ? <Image src={movie.poster} alt="" fill sizes="(max-width:640px) 45vw, 18vw" unoptimized className="object-cover"/> : null}<span className="absolute bottom-2 left-2 z-10 rounded bg-black/75 px-2 py-1 text-[10px] font-bold">{movie.quality}</span></div><h2 className="mt-3 text-sm font-bold hover:text-red-300">{movie.title}</h2></a><p className="mt-1 text-[11px] text-white/45">{movie.year || "Year not listed"} · {movie.genre}</p><p className="mt-1 text-[11px] text-white/60">Translator: {movie.translator}</p></article>)}</div> : <div className="rounded-xl border border-dashed border-white/15 p-12 text-center"><h2 className="font-bold">No published movies yet</h2><p className="mt-2 text-sm text-white/45">New authorized Kinyarwanda titles will appear here when they are published.</p></div>}
