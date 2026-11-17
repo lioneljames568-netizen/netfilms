@@ -1,5 +1,6 @@
 export type DemoMovie = {
   id: string;
+  kind?: "standalone" | "part";
   title: string;
   year: number;
   genre: string;
