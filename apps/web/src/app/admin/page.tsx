@@ -37,6 +37,7 @@ export default function AdminPage() {
       supabase.from("series").select("id", { count: "exact", head: true }),
       supabase.from("movies").select("id", { count: "exact", head: true }).eq("status", "draft"),
       supabase.from("translators").select("id,full_name,slug").eq("is_active", true).order("full_name"),
+      supabase.from("movies").select("id,title,status").order("created_at", { ascending: false }),
     ]);
     setCounts({ movies: movieCount.count ?? 0, translators: translatorCount.count ?? 0, series: seriesCount.count ?? 0, drafts: draftCount.count ?? 0 });
     setTranslators(translatorRows.data ?? []);\n    setMovieOptions(movieRows.data ?? []);
@@ -65,7 +66,7 @@ export default function AdminPage() {
     event.preventDefault();
     if (!supabase || !newTranslator.trim()) return;
     setBusy(true); setNotice("");
-    const baseSlug = newTranslator.trim().toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const baseSlug = newTranslator.trim().toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const { data, error } = await supabase.from("translators").insert({ full_name: newTranslator.trim(), slug: baseSlug, biography: newTranslatorBio.trim(), is_active: true }).select("id,full_name,slug").single();
     if (error) setNotice(error.message);
     else { setTranslators(current => [...current, data].sort((a,b)=>a.full_name.localeCompare(b.full_name))); setTranslatorId(data.id); setNewTranslator(""); setNewTranslatorBio(""); setNotice("Translator profile created."); }
@@ -76,7 +77,7 @@ export default function AdminPage() {
     event.preventDefault();
     if (!supabase || !title.trim() || !translatorId) { setNotice("Enter a movie title and choose a translator."); return; }
     setBusy(true); setNotice("");
-    const cleanSlug = (slug || title).trim().toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const cleanSlug = (slug || title).trim().toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const { data, error } = await supabase.from("movies").insert({ title: title.trim(), slug: cleanSlug, description: description.trim(), status: "draft", kind: "standalone" }).select("id").single();
     if (error || !data) { setNotice(error?.message ?? "Could not create movie."); setBusy(false); return; }
     const link = await supabase.from("movie_translators").insert({ movie_id: data.id, translator_id: translatorId, credit_order: 1 });
@@ -102,7 +103,7 @@ export default function AdminPage() {
     const session = await supabase.auth.getSession();
     const token = session.data.session?.access_token;
     if (!token) { setUploadNotice("Your session expired. Sign in again."); return; }
-    const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000").replace(/\\/$/, "");
+    const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000").replace(/\/$/, "");
     setBusy(true); setUploadProgress(0); setUploadNotice("Preparing secure upload…");
     try {
       const intentResponse = await fetch(`${apiBase}/api/v1/admin/media/presign`, {
