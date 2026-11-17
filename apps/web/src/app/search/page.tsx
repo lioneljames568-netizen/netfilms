@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";\nimport type { FormEvent } from "react";
+import { useState } from "react";
+import type { FormEvent } from "react";
 import Image from "next/image";
 import { Search, ArrowLeft, Film, Clapperboard, Languages, UserRound } from "lucide-react";
 
