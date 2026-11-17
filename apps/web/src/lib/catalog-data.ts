@@ -15,7 +15,7 @@ export type MovieRecord = {
   translators: { id: string; slug: string; full_name: string }[];
   genres: string[];
   poster_url: string | null;
-  parts: { part_number: number; collection_title: string | null; total_parts: number | null }[];
+  parts: { part_number: number; collection_id: string; collection_title: string | null; total_parts: number | null; siblings: { id: string; slug: string; title: string; part_number: number }[] }[];
 };
 
 export type TranslatorRecord = {
@@ -64,7 +64,7 @@ export async function getPublishedMovies(): Promise<MovieRecord[]> {
       movie_translators(translators(id, slug, full_name)),
       movie_genres(genres(name)),
       movie_media(kind, media_assets(external_url)),
-      movie_parts(part_number, movie_collections(title, total_parts))
+      movie_parts(part_number, movie_collections(id, title, total_parts, movie_parts(movie_id, part_number, movies(id, slug, title, status))))
     `)
     .eq("status", "published")
     .order("published_at", { ascending: false, nullsFirst: false });
@@ -96,8 +96,21 @@ export async function getPublishedMovies(): Promise<MovieRecord[]> {
       genres: genreLinks.flatMap((link) => asArray<{ name: string }>(link.genres).map((genre) => genre.name)),
       poster_url: posterAsset?.external_url ?? null,
       parts: partLinks.map((link) => {
-        const collection = asArray<{ title: string; total_parts: number | null }>(link.movie_collections)[0];
-        return { part_number: link.part_number, collection_title: collection?.title ?? null, total_parts: collection?.total_parts ?? null };
+        const collection = asArray<{ id: string; title: string; total_parts: number | null; movie_parts: unknown }>(link.movie_collections)[0];
+        const siblings = collection
+          ? asArray<{ movie_id: string; part_number: number; movies: unknown }>(collection.movie_parts).flatMap((part) =>
+              asArray<{ id: string; slug: string; title: string; status: string }>(part.movies)
+                .filter((candidate) => candidate.status === "published")
+                .map((candidate) => ({ id: candidate.id, slug: candidate.slug, title: candidate.title, part_number: part.part_number })),
+            ).sort((a, b) => a.part_number - b.part_number)
+          : [];
+        return {
+          part_number: link.part_number,
+          collection_id: collection?.id ?? "",
+          collection_title: collection?.title ?? null,
+          total_parts: collection?.total_parts ?? null,
+          siblings,
+        };
       }),
     } satisfies MovieRecord;
   });
