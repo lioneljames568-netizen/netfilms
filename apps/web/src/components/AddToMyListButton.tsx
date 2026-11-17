@@ -35,7 +35,7 @@ export function AddToMyListButton({ movieId }: { movieId: string }) {
   return (
     <button type="button" onClick={toggleSaved} disabled={!ready}
       aria-pressed={saved}
-      className="mt-8 inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/[.06] px-5 py-3 text-sm font-bold transition hover:border-brand/60 hover:bg-white/10 disabled:opacity-50">
+      className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/[.06] px-5 py-3 text-sm font-bold transition hover:border-brand/60 hover:bg-white/10 disabled:opacity-50">
       {saved ? <BookmarkCheck size={18} className="text-brand" /> : <Bookmark size={18} />}
       {saved ? "Saved to My List" : "Add to My List"}
     </button>
