@@ -7,6 +7,7 @@ export async function GET() {
   const movies = await getPublishedMovies();
   const payload = movies.map((movie) => ({
     id: movie.slug,
+    kind: movie.kind,
     title: movie.title,
     year: movie.release_year ?? 0,
     genre: movie.genres.join(" · ") || "Uncategorized",
