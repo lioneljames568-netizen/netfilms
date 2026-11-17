@@ -1,31 +1,49 @@
 # NetFilms — Movies in Kinyarwanda
 
-A streaming discovery platform for authorized Kinyarwanda-translated movies.
+A responsive discovery and streaming platform for authorized Kinyarwanda-translated movies.
 
-## Monorepo layout
+## Monorepo
 
-- `apps/web` — Next.js public website and admin interface
-- `apps/api` — FastAPI backend (added in the backend foundation phase)
-- `supabase/` — database migrations and local Supabase configuration
-- `docs/` — architecture and implementation notes
+- `apps/web` — Next.js 15, TypeScript and Tailwind public website
+- `apps/api` — FastAPI public catalogue API
+- `supabase/migrations` — PostgreSQL schema, relationships and row-level security
+- `docs` — architecture and implementation notes
 
-## Current status
+## Development status
 
-Phase 1 foundation: public website shell and responsive design system.
+The public frontend currently has a responsive homepage, movie directory, movie detail pages, series directory, translator directory and device-local watchlist. Catalogue entries and artwork are illustrative placeholders until the authorized NetFilms catalogue is connected.
 
-The movie catalogue currently uses clearly marked demonstration data. No movie streams or distribution rights are implied.
+The backend foundation now exposes health, published movie, translator and series endpoints. The Supabase schema has been committed but must still be applied to a provisioned project.
 
-## Frontend development
+## Run the frontend
 
-```bash
+```powershell
 cd apps/web
 npm install
+Copy-Item .env.example .env.local
 npm run dev
 ```
 
-## Required environment variables
+Open http://localhost:3000.
 
-See `apps/web/.env.example`. Never commit secrets, service-role keys, or R2 credentials.
+## Run the backend
+
+```powershell
+cd apps/api
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
+uvicorn app.main:app --reload --port 8000
+```
+
+Open http://localhost:8000/docs for the API reference.
+
+Configure the backend's `SUPABASE_URL` and `SUPABASE_ANON_KEY` using the public/publishable key from your Supabase project. Never use a service-role key in the browser.
+
+## Database
+
+Apply migrations in `supabase/migrations` to a new Supabase project after reviewing them. The schema enforces translator assignments for published movies and episodes and keeps draft content private from public catalogue queries.
 
 ## Product rules
 
@@ -34,3 +52,4 @@ See `apps/web/.env.example`. Never commit secrets, service-role keys, or R2 cred
 - Movie parts are not seasons or episodes.
 - Public viewing must not require registration.
 - Admin access must be authenticated and authorized server-side.
+- Secrets, service-role keys and R2 credentials must never be committed.
