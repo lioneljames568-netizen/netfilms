@@ -117,7 +117,8 @@ async def create_upload_url(
             Params={
                 "Bucket": settings.r2_bucket_name,
                 "Key": object_key,
-                "ContentType": intent.content_type,\n                "ContentLength": intent.byte_size,
+                "ContentType": intent.content_type,
+                "ContentLength": intent.byte_size,
             },
             ExpiresIn=600,
         )
