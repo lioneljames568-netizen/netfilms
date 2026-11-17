@@ -42,7 +42,7 @@ export function NetFilmsPlayer({ src, title, contentId }: { src: string; title: 
   return (
     <MediaPlayer ref={player} title={title} src={src} playsInline aspectRatio="16/9"
       onLoadedMetadata={restoreProgress}
-      onTimeUpdate={(event) => saveProgress(event.currentTime, event.duration)}
+      onTimeUpdate={(event) => saveProgress(event.currentTime, player.current?.state.duration ?? 0)}
       onEnded={clearProgress}
       className="netfilms-player w-full overflow-hidden rounded-xl border border-white/10 bg-black">
       <MediaProvider />
