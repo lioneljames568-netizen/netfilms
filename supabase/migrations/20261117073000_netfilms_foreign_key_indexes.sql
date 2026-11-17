@@ -1,0 +1,11 @@
+-- Performance indexes for foreign-key lookup and join paths.
+create index if not exists audit_logs_actor_id_idx on public.audit_logs (actor_id);
+create index if not exists comments_episode_id_idx on public.comments (episode_id);
+create index if not exists comments_movie_id_idx on public.comments (movie_id);
+create index if not exists episode_media_media_asset_id_idx on public.episode_media (media_asset_id);
+create index if not exists episode_translators_translator_id_idx on public.episode_translators (translator_id);
+create index if not exists media_assets_created_by_idx on public.media_assets (created_by);
+create index if not exists movie_actors_actor_id_idx on public.movie_actors (actor_id);
+create index if not exists movie_genres_genre_id_idx on public.movie_genres (genre_id);
+create index if not exists movie_media_media_asset_id_idx on public.movie_media (media_asset_id);
+create index if not exists movie_translators_translator_id_idx on public.movie_translators (translator_id);
