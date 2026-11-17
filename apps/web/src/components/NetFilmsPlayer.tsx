@@ -7,7 +7,8 @@ import { DefaultVideoLayout, defaultLayoutIcons } from "@vidstack/react/player/l
 const HISTORY_KEY = "netfilms:watch-history:v1";
 
 export function NetFilmsPlayer({ src, title, contentId }: { src: string; title: string; contentId: string }) {
-  const lastSavedAt = useRef(0);\n  const player = useRef<MediaPlayerInstance>(null);
+  const lastSavedAt = useRef(0);
+  const player = useRef<MediaPlayerInstance>(null);
   const saveProgress = useCallback((currentTime: number, duration: number) => {
     if (!Number.isFinite(currentTime) || !Number.isFinite(duration) || duration <= 0) return;
     const now = Date.now();
@@ -20,7 +21,17 @@ export function NetFilmsPlayer({ src, title, contentId }: { src: string; title: 
     } catch { /* Playback must continue if local storage is unavailable. */ }
   }, [contentId, title]);
 
-  const restoreProgress = useCallback(() => {\n    try {\n      const stored = JSON.parse(localStorage.getItem(HISTORY_KEY) || "{}") as Record<string, { currentTime?: number; duration?: number }>;\n      const saved = stored[contentId];\n      if (player.current && saved && typeof saved.currentTime === "number" && saved.currentTime > 0 && saved.currentTime < (saved.duration || Infinity) - 5) {\n        player.current.currentTime = saved.currentTime;\n      }\n    } catch { /* Start from the beginning when saved progress is unavailable. */ }\n  }, [contentId]);\n\n  const clearProgress = useCallback(() => {
+  const restoreProgress = useCallback(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(HISTORY_KEY) || "{}") as Record<string, { currentTime?: number; duration?: number }>;
+      const saved = stored[contentId];
+      if (player.current && saved && typeof saved.currentTime === "number" && saved.currentTime > 0 && saved.currentTime < (saved.duration || Infinity) - 5) {
+        player.current.currentTime = saved.currentTime;
+      }
+    } catch { /* Start from the beginning when saved progress is unavailable. */ }
+  }, [contentId]);
+
+  const clearProgress = useCallback(() => {
     try {
       const stored = JSON.parse(localStorage.getItem(HISTORY_KEY) || "{}") as Record<string, unknown>;
       delete stored[contentId];
@@ -29,7 +40,8 @@ export function NetFilmsPlayer({ src, title, contentId }: { src: string; title: 
   }, [contentId]);
 
   return (
-    <MediaPlayer title={title} src={src} playsInline aspectRatio="16/9"
+    <MediaPlayer ref={player} title={title} src={src} playsInline aspectRatio="16/9"
+      onLoadedMetadata={restoreProgress}
       onTimeUpdate={(event) => saveProgress(event.currentTime, event.duration)}
       onEnded={clearProgress}
       className="netfilms-player w-full overflow-hidden rounded-xl border border-white/10 bg-black">
