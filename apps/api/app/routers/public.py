@@ -1,6 +1,11 @@
-import asyncio\n\nimport boto3\nfrom botocore.config import Config as BotoConfig\nfrom fastapi import APIRouter, HTTPException, Query
+import asyncio
 
-from app.config import get_settings\nfrom app.services.supabase_rest import select_rows
+import boto3
+from botocore.config import Config as BotoConfig
+from fastapi import APIRouter, HTTPException, Query
+
+from app.config import get_settings
+from app.services.supabase_rest import select_rows
 
 router = APIRouter()
 
