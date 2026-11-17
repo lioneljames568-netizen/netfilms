@@ -6,7 +6,7 @@ import { Search, Menu, X, Play, Plus, Check, ChevronRight, Flame, Clapperboard, 
 
 type CatalogMovie = {
   id: string; title: string; year: number; genre: string; quality: string;
-  translator: string; poster: string; label?: string; description?: string;
+  translator: string; poster: string; label?: string; description?: string; progress?: number;
 };
 
 function Brand() {
@@ -24,7 +24,7 @@ function MovieCard({ movie, saved, onToggle }: { movie: CatalogMovie; saved: boo
       <a href={`/movies/${movie.id}`} aria-label={`View ${movie.title}`} className="absolute inset-0 z-[1]"/>
       {movie.label && <span className="absolute left-2.5 top-2.5 z-10 rounded bg-brand px-2 py-1 text-[9px] font-black tracking-widest">{movie.label}</span>}
       <button onClick={() => onToggle(movie.id)} aria-label={saved ? "Remove from My List" : "Add to My List"} className="absolute right-2.5 top-2.5 z-10 grid h-8 w-8 place-items-center rounded-full border border-white/20 bg-black/55 text-white backdrop-blur transition hover:bg-brand">{saved ? <Check size={15}/> : <Plus size={15}/>}</button>
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 p-3"><p className="mb-1 text-[9px] font-bold uppercase tracking-[.18em] text-red-300">{movie.quality} <span className="text-white/40">·</span> {movie.year || "—"}</p><h3 className="line-clamp-2 text-sm font-bold leading-snug">{movie.title}</h3></div>
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 p-3"><p className="mb-1 text-[9px] font-bold uppercase tracking-[.18em] text-red-300">{movie.quality} <span className="text-white/40">·</span> {movie.year || "—"}</p><h3 className="line-clamp-2 text-sm font-bold leading-snug">{movie.title}</h3></div>{typeof movie.progress === "number" && <div className="absolute inset-x-0 bottom-0 z-20 h-1 bg-white/20"><div className="h-full bg-brand" style={{ width: `${movie.progress}%` }}/></div>}
     </div>
     <p className="mt-2 truncate text-[11px] text-white/45">{movie.genre} <span className="px-1 text-white/20">·</span> {movie.translator}</p>
   </article>;
@@ -42,12 +42,14 @@ export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [saved, setSaved] = useState<string[]>([]);\n  const [history, setHistory] = useState<Record<string, { currentTime: number; duration: number; updatedAt: number }>>({});
+  const [saved, setSaved] = useState<string[]>([]);
+  const [history, setHistory] = useState<Record<string, { currentTime: number; duration: number; updatedAt: number }>>({});
   const [movies, setMovies] = useState<CatalogMovie[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
 
   useEffect(() => {
-    try { setSaved(JSON.parse(localStorage.getItem("netfilms:watchlist:v1") || "[]")); } catch { setSaved([]); }\n    try { setHistory(JSON.parse(localStorage.getItem("netfilms:watch-history:v1") || "{}")); } catch { setHistory({}); }
+    try { setSaved(JSON.parse(localStorage.getItem("netfilms:watchlist:v1") || "[]")); } catch { setSaved([]); }
+    try { setHistory(JSON.parse(localStorage.getItem("netfilms:watch-history:v1") || "{}")); } catch { setHistory({}); }
     fetch("/api/catalog/movies")
       .then(response => response.ok ? response.json() : Promise.reject(new Error("Catalog unavailable")))
       .then(data => setMovies(Array.isArray(data.movies) ? data.movies : []))
@@ -87,12 +89,14 @@ export default function HomePage() {
 
     {query && <section className="container-nf mt-8"><p className="mb-4 text-sm text-white/55">Search results for <strong className="text-white">“{query}”</strong></p>{filtered.length ? <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">{filtered.map(movie=><MovieCard key={movie.id} movie={movie} saved={saved.includes(movie.id)} onToggle={toggleSaved}/>)}</div> : <p className="rounded-xl border border-white/10 p-8 text-center text-sm text-white/50">No matches found. Try another title or translator.</p>}</section>}
     {catalogLoading ? <div className="container-nf mt-12 text-sm text-white/40">Loading the published catalogue…</div> : !movies.length ? <div className="container-nf mt-12 rounded-2xl border border-dashed border-white/15 p-10 text-center"><h2 className="text-xl font-bold">The catalogue is getting ready</h2><p className="mt-2 text-sm text-white/45">New authorized Kinyarwanda titles will appear here as soon as they are published.</p></div> : null}
-    <MovieRow title="Continue watching" subtitle="Pick up where you left off" icon={<Play size={15}/>} movies={movies.filter(movie => history[movie.id] && history[movie.id].duration > 0).sort((a,b) => (history[b.id]?.updatedAt || 0) - (history[a.id]?.updatedAt || 0)).map(movie => ({...movie, progress: Math.min(100, Math.max(0, Math.round(history[movie.id].currentTime / history[movie.id].duration * 100)))})).slice(0,6)} saved={saved} onToggle={toggleSaved}/>\n    <MovieRow title="Trending this week" subtitle="Popular right now" icon={<Flame size={15}/>} movies={movies.filter(movie=>movie.label==="TRENDING").slice(0,6)} saved={saved} onToggle={toggleSaved}/>
+    <MovieRow title="Continue watching" subtitle="Pick up where you left off" icon={<Play size={15}/>} movies={movies.filter(movie => history[movie.id] && history[movie.id].duration > 0).sort((a,b) => (history[b.id]?.updatedAt || 0) - (history[a.id]?.updatedAt || 0)).map(movie => ({...movie, progress: Math.min(100, Math.max(0, Math.round(history[movie.id].currentTime / history[movie.id].duration * 100)))})).slice(0,6)} saved={saved} onToggle={toggleSaved}/>
+    <MovieRow title="Trending this week" subtitle="Popular right now" icon={<Flame size={15}/>} movies={movies.filter(movie=>movie.label==="TRENDING").slice(0,6)} saved={saved} onToggle={toggleSaved}/>
     <MovieRow title="Fresh from the studio" subtitle="Recently added" icon={<Clapperboard size={15}/>} movies={movies.slice(0,6)} saved={saved} onToggle={toggleSaved}/>
 
     <section className="container-nf mt-16"><div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#111] p-7 sm:p-10"><div className="absolute -right-12 -top-24 h-64 w-64 rounded-full bg-brand/15 blur-3xl"/><div className="relative max-w-xl"><p className="mb-3 text-[10px] font-bold uppercase tracking-[.2em] text-brand">The voices behind the stories</p><h2 className="text-3xl font-black tracking-tight sm:text-4xl">Stories travel further in your language.</h2><p className="mt-3 text-sm leading-6 text-white/55">Discover the translators bringing stories to Kinyarwanda audiences, and explore the work behind every film.</p><a href="/translators" className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-white transition hover:text-red-300">Explore translators <ArrowRight size={16}/></a></div></div></section>
 
     <footer className="container-nf mt-16 border-t border-white/10 pt-8"><div className="flex flex-col justify-between gap-7 sm:flex-row sm:items-center"><div><Brand/><p className="mt-3 text-xs text-white/40">Movies in Kinyarwanda.</p></div><div className="flex flex-wrap gap-x-6 gap-y-3 text-xs text-white/50"><a href="/about" className="hover:text-white">About</a><a href="/contact" className="hover:text-white">Contact</a><a href="/privacy" className="hover:text-white">Privacy</a><a href="/terms" className="hover:text-white">Terms</a><a href="https://wa.me/250794974962" target="_blank" rel="noreferrer" className="hover:text-white">WhatsApp</a><a href="/admin" className="hover:text-white">Admin</a></div></div><div className="mt-8 flex flex-col justify-between gap-2 border-t border-white/[0.06] py-5 text-[10px] text-white/30 sm:flex-row"><span>© {new Date().getFullYear()} NetFilms. All rights reserved.</span><span>Only authorized Kinyarwanda-translated content.</span></div></footer>
-    <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-5 border-t border-white/10 bg-black/95 px-2 py-2 text-[10px] text-white/55 backdrop-blur sm:hidden"><a href="/" className="flex flex-col items-center gap-1 py-1 text-brand">⌂<span>Home</span></a><a href="/movies" className="flex flex-col items-center gap-1 py-1">▣<span>Movies</span></a><a href="/translators" className="flex flex-col items-center gap-1 py-1">文<span>People</span></a><a href="/search" className="flex flex-col items-center gap-1 py-1">⌕<span>Search</span></a><a href="/my-list" className="flex flex-col items-center gap-1 py-1">♡<span>My List</span></a></nav>\n    <div className="fixed bottom-20 right-5 z-40 sm:hidden"><a href="https://wa.me/250794974962" target="_blank" rel="noreferrer" aria-label="Contact NetFilms on WhatsApp" className="grid h-12 w-12 place-items-center rounded-full bg-[#25D366] text-xl font-bold text-black shadow-xl">W</a></div>
+    <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-5 border-t border-white/10 bg-black/95 px-2 py-2 text-[10px] text-white/55 backdrop-blur sm:hidden"><a href="/" className="flex flex-col items-center gap-1 py-1 text-brand">⌂<span>Home</span></a><a href="/movies" className="flex flex-col items-center gap-1 py-1">▣<span>Movies</span></a><a href="/translators" className="flex flex-col items-center gap-1 py-1">文<span>People</span></a><a href="/search" className="flex flex-col items-center gap-1 py-1">⌕<span>Search</span></a><a href="/my-list" className="flex flex-col items-center gap-1 py-1">♡<span>My List</span></a></nav>
+    <div className="fixed bottom-20 right-5 z-40 sm:hidden"><a href="https://wa.me/250794974962" target="_blank" rel="noreferrer" aria-label="Contact NetFilms on WhatsApp" className="grid h-12 w-12 place-items-center rounded-full bg-[#25D366] text-xl font-bold text-black shadow-xl">W</a></div>
   </main>;
 }
