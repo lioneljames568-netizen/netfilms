@@ -8,6 +8,7 @@ type Translator = { id: string; full_name: string; slug: string };
 type MovieOption = { id: string; title: string; status: string };
 type SeriesOption = { id: string; title: string; status: string };
 type SeasonOption = { id: string; series_id: string; season_number: number; title: string | null };
+type EpisodeOption = { id: string; season_id: string; episode_number: number; title: string };
 
 export default function AdminPage() {
   const supabase = getBrowserSupabase();
@@ -18,6 +19,10 @@ export default function AdminPage() {
   const [movieOptions, setMovieOptions] = useState<MovieOption[]>([]);
   const [seriesOptions, setSeriesOptions] = useState<SeriesOption[]>([]);
   const [seasonOptions, setSeasonOptions] = useState<SeasonOption[]>([]);
+  const [episodeOptions, setEpisodeOptions] = useState<EpisodeOption[]>([]);
+  const [selectedEpisodeId, setSelectedEpisodeId] = useState("");
+  const [episodeMediaKind, setEpisodeMediaKind] = useState<"video" | "episode_thumbnail" | "subtitle">("video");
+  const [episodeMediaUrl, setEpisodeMediaUrl] = useState("");
   const [selectedSeriesId, setSelectedSeriesId] = useState("");
   const [selectedSeasonId, setSelectedSeasonId] = useState("");
   const [seriesTitle, setSeriesTitle] = useState("");
@@ -60,7 +65,7 @@ export default function AdminPage() {
     const { data, error } = await supabase.from("admin_users").select("user_id,display_name,role,is_active").eq("user_id", user.id).maybeSingle();
     if (error || !data || !data.is_active) { setProfile(null); setNotice("This account is not assigned an active NetFilms administrator role."); setLoading(false); return; }
     setProfile(data);
-    const [movieCount, translatorCount, seriesCount, draftCount, translatorRows, movieRows, seriesRows, seasonRows] = await Promise.all([
+    const [movieCount, translatorCount, seriesCount, draftCount, translatorRows, movieRows, seriesRows, seasonRows, episodeRows] = await Promise.all([
       supabase.from("movies").select("id", { count: "exact", head: true }),
       supabase.from("translators").select("id", { count: "exact", head: true }),
       supabase.from("series").select("id", { count: "exact", head: true }),
@@ -74,7 +79,7 @@ export default function AdminPage() {
     setTranslators(translatorRows.data ?? []);
     setMovieOptions(movieRows.data ?? []);
     setSeriesOptions(seriesRows.data ?? []);
-    setSeasonOptions(seasonRows.data ?? []);
+    setSeasonOptions(seasonRows.data ?? []);\n    setEpisodeOptions(episodeRows.data ?? []);
     setLoading(false);
   }
 
@@ -279,6 +284,72 @@ export default function AdminPage() {
     setBusy(false);
   }
 
+
+  async function uploadEpisodeMedia(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase || !selectedEpisodeId) { setUploadNotice("Choose an episode first."); return; }
+    const form = event.currentTarget;
+    const input = form.elements.namedItem("episode-media-file") as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (!file) { setUploadNotice("Choose a file to upload."); return; }
+    const session = await supabase.auth.getSession();
+    const token = session.data.session?.access_token;
+    if (!token) { setUploadNotice("Your session expired. Sign in again."); return; }
+    const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000").replace(/\/$/, "");
+    setBusy(true); setUploadProgress(0); setUploadNotice("Preparing secure episode upload…");
+    try {
+      const intentResponse = await fetch(`${apiBase}/api/v1/admin/media/presign`, {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ filename: file.name, content_type: file.type, kind: episodeMediaKind, byte_size: file.size }),
+      });
+      const intent = await intentResponse.json();
+      if (!intentResponse.ok) throw new Error(intent.detail || "Could not prepare upload.");
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest(); xhr.open("PUT", intent.upload_url);
+        Object.entries(intent.required_headers || {}).forEach(([key, value]) => xhr.setRequestHeader(key, String(value)));
+        xhr.upload.onprogress = progress => { if (progress.lengthComputable) setUploadProgress(Math.round(progress.loaded / progress.total * 100)); };
+        xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error("Cloudflare R2 rejected the upload."));
+        xhr.onerror = () => reject(new Error("Network error while uploading to Cloudflare R2."));
+        xhr.send(file);
+      });
+      const completeResponse = await fetch(`${apiBase}/api/v1/admin/media/complete`, {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ object_key: intent.object_key, kind: episodeMediaKind, entity_type: "episode", entity_id: selectedEpisodeId }),
+      });
+      const complete = await completeResponse.json();
+      if (!completeResponse.ok) throw new Error(complete.detail || "Could not attach media to the episode.");
+      setUploadNotice(`Episode upload complete. ${episodeMediaKind} media has been attached.`);
+      setUploadProgress(100); form.reset();
+    } catch (error) {
+      setUploadNotice(error instanceof Error ? error.message : "Episode upload failed. Please retry.");
+    } finally { setBusy(false); }
+  }
+
+  async function addEpisodeMediaByUrl(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase || !selectedEpisodeId) { setUploadNotice("Choose an episode first."); return; }
+    let parsed: URL;
+    try { parsed = new URL(episodeMediaUrl.trim()); } catch { setUploadNotice("Enter a valid media URL."); return; }
+    if (parsed.protocol !== "https:") { setUploadNotice("Media URLs must use HTTPS."); return; }
+    setBusy(true); setUploadNotice("Saving episode media URL…");
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) { setUploadNotice("Your session expired. Sign in again."); setBusy(false); return; }
+    const { data: asset, error } = await supabase.from("media_assets").insert({
+      kind: episodeMediaKind, external_url: parsed.toString(), created_by: userData.user.id,
+    }).select("id").single();
+    if (error || !asset) { setUploadNotice(error?.message ?? "Could not save media URL."); setBusy(false); return; }
+    const link = await supabase.from("episode_media").insert({
+      episode_id: selectedEpisodeId, media_asset_id: asset.id, kind: episodeMediaKind,
+    });
+    if (link.error) {
+      await supabase.from("media_assets").delete().eq("id", asset.id);
+      setUploadNotice("Could not attach episode media: " + link.error.message);
+    } else {
+      setEpisodeMediaUrl(""); setUploadNotice("Episode media URL saved and attached.");
+    }
+    setBusy(false);
+  }
+
   if (loading) return <main className="min-h-screen bg-ink p-8 text-white"><p className="text-sm text-white/50">Checking administrator access…</p></main>;
 
   return <main className="min-h-screen bg-ink text-white">
@@ -322,6 +393,25 @@ export default function AdminPage() {
           </div>
         </div>
       </section>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <form onSubmit={addEpisodeMediaByUrl} className="rounded-2xl border border-white/10 bg-panel p-6">
+          <h3 className="text-lg font-black">Episode media by HTTPS URL</h3>
+          <p className="mt-2 text-xs leading-5 text-white/45">Attach an authorized video, thumbnail or subtitle URL to an episode.</p>
+          <label className="mt-4 block text-xs font-semibold text-white/65">Episode<select required value={selectedEpisodeId} onChange={e=>setSelectedEpisodeId(e.target.value)} className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"><option value="">Choose episode</option>{episodeOptions.map(item=><option key={item.id} value={item.id}>Episode {item.episode_number}: {item.title}</option>)}</select></label>
+          <label className="mt-3 block text-xs font-semibold text-white/65">Media URL<input required type="url" value={episodeMediaUrl} onChange={e=>setEpisodeMediaUrl(e.target.value)} placeholder="https://…" className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"/></label>
+          <label className="mt-3 block text-xs font-semibold text-white/65">Media type<select value={episodeMediaKind} onChange={e=>setEpisodeMediaKind(e.target.value as "video" | "episode_thumbnail" | "subtitle")} className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"><option value="video">Episode video</option><option value="episode_thumbnail">Episode thumbnail</option><option value="subtitle">Subtitle file</option></select></label>
+          <button disabled={busy || !selectedEpisodeId} className="mt-5 rounded-lg border border-white/15 px-5 py-3 text-xs font-bold disabled:opacity-40">Attach episode URL</button>
+        </form>
+        <form onSubmit={uploadEpisodeMedia} className="rounded-2xl border border-white/10 bg-panel p-6">
+          <h3 className="text-lg font-black">Upload episode media to R2</h3>
+          <p className="mt-2 text-xs leading-5 text-white/45">Direct browser-to-R2 upload with a short-lived signed URL and server-side verification.</p>
+          <label className="mt-4 block text-xs font-semibold text-white/65">Episode<select required value={selectedEpisodeId} onChange={e=>setSelectedEpisodeId(e.target.value)} className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"><option value="">Choose episode</option>{episodeOptions.map(item=><option key={item.id} value={item.id}>Episode {item.episode_number}: {item.title}</option>)}</select></label>
+          <label className="mt-3 block text-xs font-semibold text-white/65">Media type<select value={episodeMediaKind} onChange={e=>setEpisodeMediaKind(e.target.value as "video" | "episode_thumbnail" | "subtitle")} className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"><option value="video">Episode video</option><option value="episode_thumbnail">Episode thumbnail</option><option value="subtitle">Subtitle file</option></select></label>
+          <label className="mt-3 block text-xs font-semibold text-white/65">Choose file<input name="episode-media-file" required type="file" accept={episodeMediaKind==="video" ? "video/mp4,video/webm,video/quicktime" : episodeMediaKind==="subtitle" ? ".vtt,.srt,text/vtt,application/x-subrip" : "image/jpeg,image/png,image/webp"} className="mt-2 block w-full text-xs text-white/60 file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white"/></label>
+          <button disabled={busy || !selectedEpisodeId} className="mt-5 rounded-lg bg-brand px-5 py-3 text-xs font-bold disabled:opacity-40">{busy ? "Uploading…" : "Upload and attach episode media"}</button>
+        </form>
+      </div>
       {notice && <p role="status" className="mt-6 rounded-lg border border-white/10 bg-panel p-4 text-sm text-white/70">{notice}</p>}
       <p className="mt-8 text-xs leading-6 text-white/35">Publishing remains intentionally disabled until the complete review and launch configuration is ready.</p></>}
     </section>
