@@ -23,6 +23,8 @@ export default function AdminPage() {
   const [selectedEpisodeId, setSelectedEpisodeId] = useState("");
   const [episodeMediaKind, setEpisodeMediaKind] = useState<"video" | "episode_thumbnail" | "subtitle">("video");
   const [episodeMediaUrl, setEpisodeMediaUrl] = useState("");
+  const [subtitleLabel, setSubtitleLabel] = useState("Kinyarwanda");
+  const [subtitleLanguage, setSubtitleLanguage] = useState("rw");
   const [selectedSeriesId, setSelectedSeriesId] = useState("");
   const [selectedSeasonId, setSelectedSeasonId] = useState("");
   const [seriesTitle, setSeriesTitle] = useState("");
@@ -304,7 +306,7 @@ export default function AdminPage() {
     try {
       const intentResponse = await fetch(`${apiBase}/api/v1/admin/media/presign`, {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ filename: file.name, content_type: file.type, kind: episodeMediaKind, byte_size: file.size }),
+        body: JSON.stringify({ filename: file.name, content_type: file.type, kind: episodeMediaKind, byte_size: file.size, ...(episodeMediaKind === "subtitle" ? { subtitle_label: subtitleLabel.trim(), subtitle_language: subtitleLanguage.trim() } : {}) }),
       });
       const intent = await intentResponse.json();
       if (!intentResponse.ok) throw new Error(intent.detail || "Could not prepare upload.");
@@ -318,7 +320,7 @@ export default function AdminPage() {
       });
       const completeResponse = await fetch(`${apiBase}/api/v1/admin/media/complete`, {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ object_key: intent.object_key, kind: episodeMediaKind, entity_type: "episode", entity_id: selectedEpisodeId }),
+        body: JSON.stringify({ object_key: intent.object_key, kind: episodeMediaKind, entity_type: "episode", entity_id: selectedEpisodeId, ...(episodeMediaKind === "subtitle" ? { subtitle_label: subtitleLabel.trim(), subtitle_language: subtitleLanguage.trim() } : {}) }),
       });
       const complete = await completeResponse.json();
       if (!completeResponse.ok) throw new Error(complete.detail || "Could not attach media to the episode.");
@@ -335,11 +337,15 @@ export default function AdminPage() {
     let parsed: URL;
     try { parsed = new URL(episodeMediaUrl.trim()); } catch { setUploadNotice("Enter a valid media URL."); return; }
     if (parsed.protocol !== "https:") { setUploadNotice("Media URLs must use HTTPS."); return; }
+    if (episodeMediaKind === "subtitle" && !parsed.pathname.toLowerCase().endsWith(".vtt")) { setUploadNotice("Video.js captions must be WebVTT files with a .vtt extension."); return; }
+    if (episodeMediaKind === "subtitle" && (!subtitleLabel.trim() || !/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(subtitleLanguage.trim()))) { setUploadNotice("Enter a subtitle label and valid language code, such as Kinyarwanda and rw."); return; }
     setBusy(true); setUploadNotice("Saving episode media URL…");
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData.user) { setUploadNotice("Your session expired. Sign in again."); setBusy(false); return; }
     const { data: asset, error } = await supabase.from("media_assets").insert({
       kind: episodeMediaKind, external_url: parsed.toString(), created_by: userData.user.id,
+      subtitle_label: episodeMediaKind === "subtitle" ? subtitleLabel.trim() : null,
+      subtitle_language: episodeMediaKind === "subtitle" ? subtitleLanguage.trim().toLowerCase() : null,
     }).select("id").single();
     if (error || !asset) { setUploadNotice(error?.message ?? "Could not save media URL."); setBusy(false); return; }
     const link = await supabase.from("episode_media").insert({
@@ -401,18 +407,20 @@ export default function AdminPage() {
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <form onSubmit={addEpisodeMediaByUrl} className="rounded-2xl border border-white/10 bg-panel p-6">
           <h3 className="text-lg font-black">Episode media by HTTPS URL</h3>
-          <p className="mt-2 text-xs leading-5 text-white/45">Attach an authorized video, thumbnail or subtitle URL to an episode.</p>
+          <p className="mt-2 text-xs leading-5 text-white/45">Attach an authorized video, thumbnail or WebVTT subtitle URL to an episode.</p>
           <label className="mt-4 block text-xs font-semibold text-white/65">Episode<select required value={selectedEpisodeId} onChange={e=>setSelectedEpisodeId(e.target.value)} className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"><option value="">Choose episode</option>{episodeOptions.map(item=><option key={item.id} value={item.id}>Episode {item.episode_number}: {item.title}</option>)}</select></label>
           <label className="mt-3 block text-xs font-semibold text-white/65">Media URL<input required type="url" value={episodeMediaUrl} onChange={e=>setEpisodeMediaUrl(e.target.value)} placeholder="https://…" className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"/></label>
-          <label className="mt-3 block text-xs font-semibold text-white/65">Media type<select value={episodeMediaKind} onChange={e=>setEpisodeMediaKind(e.target.value as "video" | "episode_thumbnail" | "subtitle")} className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"><option value="video">Episode video</option><option value="episode_thumbnail">Episode thumbnail</option><option value="subtitle">Subtitle file</option></select></label>
+          <label className="mt-3 block text-xs font-semibold text-white/65">Media type<select value={episodeMediaKind} onChange={e=>setEpisodeMediaKind(e.target.value as "video" | "episode_thumbnail" | "subtitle")} className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"><option value="video">Episode video</option><option value="episode_thumbnail">Episode thumbnail</option><option value="subtitle">WebVTT subtitles (.vtt)</option></select></label>
+          {episodeMediaKind === "subtitle" && <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="block text-xs font-semibold text-white/65">Subtitle label<input required maxLength={80} value={subtitleLabel} onChange={e=>setSubtitleLabel(e.target.value)} className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"/></label><label className="block text-xs font-semibold text-white/65">Language code<input required maxLength={35} value={subtitleLanguage} onChange={e=>setSubtitleLanguage(e.target.value)} placeholder="rw" className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"/></label></div>}
           <button disabled={busy || !selectedEpisodeId} className="mt-5 rounded-lg border border-white/15 px-5 py-3 text-xs font-bold disabled:opacity-40">Attach episode URL</button>
         </form>
         <form onSubmit={uploadEpisodeMedia} className="rounded-2xl border border-white/10 bg-panel p-6">
           <h3 className="text-lg font-black">Upload episode media to R2</h3>
-          <p className="mt-2 text-xs leading-5 text-white/45">Direct browser-to-R2 upload with a short-lived signed URL and server-side verification.</p>
+          <p className="mt-2 text-xs leading-5 text-white/45">Direct browser-to-R2 upload with a short-lived signed URL and server-side verification. Subtitle uploads must be WebVTT (.vtt).</p>
           <label className="mt-4 block text-xs font-semibold text-white/65">Episode<select required value={selectedEpisodeId} onChange={e=>setSelectedEpisodeId(e.target.value)} className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"><option value="">Choose episode</option>{episodeOptions.map(item=><option key={item.id} value={item.id}>Episode {item.episode_number}: {item.title}</option>)}</select></label>
-          <label className="mt-3 block text-xs font-semibold text-white/65">Media type<select value={episodeMediaKind} onChange={e=>setEpisodeMediaKind(e.target.value as "video" | "episode_thumbnail" | "subtitle")} className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"><option value="video">Episode video</option><option value="episode_thumbnail">Episode thumbnail</option><option value="subtitle">Subtitle file</option></select></label>
-          <label className="mt-3 block text-xs font-semibold text-white/65">Choose file<input name="episode-media-file" required type="file" accept={episodeMediaKind==="video" ? "video/mp4,video/webm,video/quicktime" : episodeMediaKind==="subtitle" ? ".vtt,.srt,text/vtt,application/x-subrip" : "image/jpeg,image/png,image/webp"} className="mt-2 block w-full text-xs text-white/60 file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white"/></label>
+          <label className="mt-3 block text-xs font-semibold text-white/65">Media type<select value={episodeMediaKind} onChange={e=>setEpisodeMediaKind(e.target.value as "video" | "episode_thumbnail" | "subtitle")} className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"><option value="video">Episode video</option><option value="episode_thumbnail">Episode thumbnail</option><option value="subtitle">WebVTT subtitles (.vtt)</option></select></label>
+          {episodeMediaKind === "subtitle" && <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="block text-xs font-semibold text-white/65">Subtitle label<input required maxLength={80} value={subtitleLabel} onChange={e=>setSubtitleLabel(e.target.value)} className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"/></label><label className="block text-xs font-semibold text-white/65">Language code<input required maxLength={35} value={subtitleLanguage} onChange={e=>setSubtitleLanguage(e.target.value)} placeholder="rw" className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-black px-3 text-sm outline-none focus:border-brand"/></label></div>}
+          <label className="mt-3 block text-xs font-semibold text-white/65">Choose file<input name="episode-media-file" required type="file" accept={episodeMediaKind==="video" ? "video/mp4,video/webm,video/quicktime" : episodeMediaKind==="subtitle" ? ".vtt,text/vtt" : "image/jpeg,image/png,image/webp"} className="mt-2 block w-full text-xs text-white/60 file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white"/></label>
           <button disabled={busy || !selectedEpisodeId} className="mt-5 rounded-lg bg-brand px-5 py-3 text-xs font-bold disabled:opacity-40">{busy ? "Uploading…" : "Upload and attach episode media"}</button>
         </form>
       </div>
