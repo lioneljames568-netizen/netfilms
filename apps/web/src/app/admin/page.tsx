@@ -344,11 +344,12 @@ export default function AdminPage() {
     setBusy(true); setUploadNotice("Saving episode media URL…");
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData.user) { setUploadNotice("Your session expired. Sign in again."); setBusy(false); return; }
-    const { data: asset, error } = await supabase.from("media_assets").insert({
+    const assetPayload = {
       kind: episodeMediaKind, external_url: parsed.toString(), content_type: episodeMediaKind === "subtitle" ? "text/vtt" : null, created_by: userData.user.id,
       subtitle_label: episodeMediaKind === "subtitle" ? subtitleLabel.trim() : null,
       subtitle_language: episodeMediaKind === "subtitle" ? subtitleLanguage.trim().toLowerCase() : null,
-    }).select("id").single();
+    };
+    const { data: asset, error } = await supabase.from("media_assets").insert(assetPayload as never).select("id").single();
     if (error || !asset) { setUploadNotice(error?.message ?? "Could not save media URL."); setBusy(false); return; }
     const link = await supabase.from("episode_media").insert({
       episode_id: selectedEpisodeId, media_asset_id: asset.id, kind: episodeMediaKind,
