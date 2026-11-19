@@ -6,8 +6,9 @@ import { Video, VideoPlayer, VideoSkin } from "@videojs/react/video";
 const HISTORY_KEY = "netfilms:watch-history:v1";
 
 type VideoEvent = SyntheticEvent<HTMLVideoElement>;
+type CaptionTrack = { src: string; kind?: "subtitles" | "captions"; label: string; language: string; default?: boolean };
 
-export function NetFilmsPlayer({ src, title, contentId }: { src: string; title: string; contentId: string }) {
+export function NetFilmsPlayer({ src, title, contentId, tracks = [] }: { src: string; title: string; contentId: string; tracks?: CaptionTrack[] }) {
   const lastSavedAt = useRef(0);
 
   const saveProgress = useCallback((currentTime: number, duration: number) => {
@@ -70,10 +71,22 @@ export function NetFilmsPlayer({ src, title, contentId }: { src: string; title: 
         <Video
           src={src}
           playsInline
+          crossOrigin="anonymous"
           onLoadedMetadata={restoreProgress}
           onTimeUpdate={(event) => saveProgress(event.currentTarget.currentTime, event.currentTarget.duration)}
           onEnded={clearProgress}
-        />
+        >
+          {tracks.map((track, index) => (
+            <track
+              key={`${track.language}-${track.label}-${index}`}
+              kind={track.kind || "subtitles"}
+              src={track.src}
+              srcLang={track.language}
+              label={track.label}
+              default={track.default}
+            />
+          ))}
+        </Video>
       </VideoSkin>
     </VideoPlayer>
   );
