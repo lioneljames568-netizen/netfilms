@@ -22,7 +22,7 @@ ALLOWED_TYPES = {
     "poster": {"image/jpeg", "image/png", "image/webp"},
     "backdrop": {"image/jpeg", "image/png", "image/webp"},
     "episode_thumbnail": {"image/jpeg", "image/png", "image/webp"},
-    "subtitle": {"text/vtt", "application/x-subrip", "text/plain"},
+    "subtitle": {"text/vtt"},
 }
 
 
@@ -31,6 +31,8 @@ class UploadIntent(BaseModel):
     content_type: str = Field(min_length=3, max_length=120)
     kind: MediaKind
     byte_size: int = Field(gt=0)
+    subtitle_label: str | None = Field(default=None, min_length=1, max_length=80)
+    subtitle_language: str | None = Field(default=None, min_length=2, max_length=35)
 
 
 class UploadComplete(BaseModel):
@@ -38,6 +40,8 @@ class UploadComplete(BaseModel):
     kind: MediaKind
     entity_type: EntityType
     entity_id: uuid.UUID
+    subtitle_label: str | None = Field(default=None, min_length=1, max_length=80)
+    subtitle_language: str | None = Field(default=None, min_length=2, max_length=35)
 
 
 def _r2_client():
@@ -141,6 +145,11 @@ async def complete_upload(
 ):
     user_id, token = await _admin_user(authorization)
     settings = get_settings()
+    if upload.kind == "subtitle":
+        if not upload.subtitle_label or not upload.subtitle_language:
+            raise HTTPException(status_code=422, detail="Subtitle label and language are required.")
+        if not re.fullmatch(r"[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*", upload.subtitle_language):
+            raise HTTPException(status_code=422, detail="Enter a valid BCP 47 subtitle language code, such as rw or en.")
     if not upload.object_key.startswith(f"netfilms/{user_id}/"):
         raise HTTPException(status_code=403, detail="This upload does not belong to the signed-in administrator.")
     if upload.entity_type == "movie" and upload.kind not in {"video", "poster", "backdrop"}:
@@ -178,6 +187,8 @@ async def complete_upload(
         "content_type": content_type,
         "byte_size": byte_size,
         "created_by": user_id,
+        "subtitle_label": upload.subtitle_label if upload.kind == "subtitle" else None,
+        "subtitle_language": upload.subtitle_language.lower() if upload.kind == "subtitle" and upload.subtitle_language else None,
     }
     try:
         async with httpx.AsyncClient(timeout=15.0) as http:
