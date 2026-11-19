@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import "@videojs/react/video/skin.css";
 import { PwaRegister } from "./PwaRegister";
 
 export const metadata: Metadata = {
