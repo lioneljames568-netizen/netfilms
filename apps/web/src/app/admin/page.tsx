@@ -144,8 +144,6 @@ export default function AdminPage() {
     const input = form.elements.namedItem("media-file") as HTMLInputElement | null;
     const file = input?.files?.[0];
     if (!file) { setUploadNotice("Choose a file to upload."); return; }
-    if (episodeMediaKind === "subtitle" && !file.name.toLowerCase().endsWith(".vtt")) { setUploadNotice("Video.js captions must be WebVTT files with a .vtt extension."); return; }
-    if (episodeMediaKind === "subtitle" && (!subtitleLabel.trim() || !/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(subtitleLanguage.trim()))) { setUploadNotice("Enter a subtitle label and valid language code, such as Kinyarwanda and rw."); return; }
     const session = await supabase.auth.getSession();
     const token = session.data.session?.access_token;
     if (!token) { setUploadNotice("Your session expired. Sign in again."); return; }
@@ -300,6 +298,8 @@ export default function AdminPage() {
     const input = form.elements.namedItem("episode-media-file") as HTMLInputElement | null;
     const file = input?.files?.[0];
     if (!file) { setUploadNotice("Choose a file to upload."); return; }
+    if (episodeMediaKind === "subtitle" && !file.name.toLowerCase().endsWith(".vtt")) { setUploadNotice("Video.js captions must be WebVTT files with a .vtt extension."); return; }
+    if (episodeMediaKind === "subtitle" && (!subtitleLabel.trim() || !/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(subtitleLanguage.trim()))) { setUploadNotice("Enter a subtitle label and valid language code, such as Kinyarwanda and rw."); return; }
     const session = await supabase.auth.getSession();
     const token = session.data.session?.access_token;
     if (!token) { setUploadNotice("Your session expired. Sign in again."); return; }
