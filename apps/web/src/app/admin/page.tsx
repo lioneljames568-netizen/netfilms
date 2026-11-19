@@ -144,6 +144,8 @@ export default function AdminPage() {
     const input = form.elements.namedItem("media-file") as HTMLInputElement | null;
     const file = input?.files?.[0];
     if (!file) { setUploadNotice("Choose a file to upload."); return; }
+    if (episodeMediaKind === "subtitle" && !file.name.toLowerCase().endsWith(".vtt")) { setUploadNotice("Video.js captions must be WebVTT files with a .vtt extension."); return; }
+    if (episodeMediaKind === "subtitle" && (!subtitleLabel.trim() || !/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(subtitleLanguage.trim()))) { setUploadNotice("Enter a subtitle label and valid language code, such as Kinyarwanda and rw."); return; }
     const session = await supabase.auth.getSession();
     const token = session.data.session?.access_token;
     if (!token) { setUploadNotice("Your session expired. Sign in again."); return; }
@@ -306,7 +308,7 @@ export default function AdminPage() {
     try {
       const intentResponse = await fetch(`${apiBase}/api/v1/admin/media/presign`, {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ filename: file.name, content_type: file.type, kind: episodeMediaKind, byte_size: file.size, ...(episodeMediaKind === "subtitle" ? { subtitle_label: subtitleLabel.trim(), subtitle_language: subtitleLanguage.trim() } : {}) }),
+        body: JSON.stringify({ filename: file.name, content_type: episodeMediaKind === "subtitle" ? "text/vtt" : file.type, kind: episodeMediaKind, byte_size: file.size, ...(episodeMediaKind === "subtitle" ? { subtitle_label: subtitleLabel.trim(), subtitle_language: subtitleLanguage.trim() } : {}) }),
       });
       const intent = await intentResponse.json();
       if (!intentResponse.ok) throw new Error(intent.detail || "Could not prepare upload.");
@@ -343,7 +345,7 @@ export default function AdminPage() {
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData.user) { setUploadNotice("Your session expired. Sign in again."); setBusy(false); return; }
     const { data: asset, error } = await supabase.from("media_assets").insert({
-      kind: episodeMediaKind, external_url: parsed.toString(), created_by: userData.user.id,
+      kind: episodeMediaKind, external_url: parsed.toString(), content_type: episodeMediaKind === "subtitle" ? "text/vtt" : null, created_by: userData.user.id,
       subtitle_label: episodeMediaKind === "subtitle" ? subtitleLabel.trim() : null,
       subtitle_language: episodeMediaKind === "subtitle" ? subtitleLanguage.trim().toLowerCase() : null,
     }).select("id").single();
