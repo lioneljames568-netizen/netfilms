@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useRef } from "react";
-import { MediaPlayer, MediaProvider, type MediaPlayerInstance } from "@vidstack/react";
-import { DefaultVideoLayout, defaultLayoutIcons } from "@vidstack/react/player/layouts/default";
+import { useCallback, useRef, type SyntheticEvent, type CSSProperties } from "react";
+import { Video, VideoPlayer, VideoSkin } from "@videojs/react/video";
 
 const HISTORY_KEY = "netfilms:watch-history:v1";
 
+type VideoEvent = SyntheticEvent<HTMLVideoElement>;
+
 export function NetFilmsPlayer({ src, title, contentId }: { src: string; title: string; contentId: string }) {
   const lastSavedAt = useRef(0);
-  const player = useRef<MediaPlayerInstance>(null);
+
   const saveProgress = useCallback((currentTime: number, duration: number) => {
     if (!Number.isFinite(currentTime) || !Number.isFinite(duration) || duration <= 0) return;
     const now = Date.now();
@@ -18,17 +19,26 @@ export function NetFilmsPlayer({ src, title, contentId }: { src: string; title: 
       const stored = JSON.parse(localStorage.getItem(HISTORY_KEY) || "{}") as Record<string, unknown>;
       stored[contentId] = { id: contentId, title, currentTime, duration, updatedAt: now };
       localStorage.setItem(HISTORY_KEY, JSON.stringify(stored));
-    } catch { /* Playback must continue if local storage is unavailable. */ }
+    } catch {
+      // Playback must continue if local storage is unavailable.
+    }
   }, [contentId, title]);
 
-  const restoreProgress = useCallback(() => {
+  const restoreProgress = useCallback((event: VideoEvent) => {
     try {
       const stored = JSON.parse(localStorage.getItem(HISTORY_KEY) || "{}") as Record<string, { currentTime?: number; duration?: number }>;
       const saved = stored[contentId];
-      if (player.current && saved && typeof saved.currentTime === "number" && saved.currentTime > 0 && saved.currentTime < (saved.duration || Infinity) - 5) {
-        player.current.currentTime = saved.currentTime;
+      if (
+        saved &&
+        typeof saved.currentTime === "number" &&
+        saved.currentTime > 0 &&
+        saved.currentTime < (saved.duration || Infinity) - 5
+      ) {
+        event.currentTarget.currentTime = saved.currentTime;
       }
-    } catch { /* Start from the beginning when saved progress is unavailable. */ }
+    } catch {
+      // Start from the beginning when saved progress is unavailable.
+    }
   }, [contentId]);
 
   const clearProgress = useCallback(() => {
@@ -36,17 +46,35 @@ export function NetFilmsPlayer({ src, title, contentId }: { src: string; title: 
       const stored = JSON.parse(localStorage.getItem(HISTORY_KEY) || "{}") as Record<string, unknown>;
       delete stored[contentId];
       localStorage.setItem(HISTORY_KEY, JSON.stringify(stored));
-    } catch { /* Ignore storage failures. */ }
+    } catch {
+      // Ignore storage failures.
+    }
   }, [contentId]);
 
+  const skinStyle = {
+    width: "100%",
+    aspectRatio: "16 / 9",
+    "--media-accent-color": "#E50914",
+    "--media-accent-text-color": "#FFFFFF",
+    "--media-border-color": "rgba(255, 255, 255, 0.1)",
+    "--media-border-radius": "0.75rem",
+    "--media-controls-before-start": "visible",
+  } as CSSProperties;
+
   return (
-    <MediaPlayer ref={player} title={title} src={src} playsInline aspectRatio="16/9"
-      onLoadedMetadata={restoreProgress}
-      onTimeUpdate={(event) => saveProgress(event.currentTime, player.current?.state.duration ?? 0)}
-      onEnded={clearProgress}
-      className="netfilms-player w-full overflow-hidden rounded-xl border border-white/10 bg-black">
-      <MediaProvider />
-      <DefaultVideoLayout icons={defaultLayoutIcons} colorScheme="dark" />
-    </MediaPlayer>
+    <VideoPlayer>
+      <VideoSkin
+        className="netfilms-player w-full overflow-hidden rounded-xl border border-white/10 bg-black"
+        style={skinStyle}
+      >
+        <Video
+          src={src}
+          playsInline
+          onLoadedMetadata={restoreProgress}
+          onTimeUpdate={(event) => saveProgress(event.currentTarget.currentTime, event.currentTarget.duration)}
+          onEnded={clearProgress}
+        />
+      </VideoSkin>
+    </VideoPlayer>
   );
 }
