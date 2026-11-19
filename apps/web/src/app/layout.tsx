@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import "@vidstack/react/player/styles/default/theme.css";
-import "@vidstack/react/player/styles/default/layouts/video.css";
+import "@videojs/react/video/skin.css";
 import { PwaRegister } from "./PwaRegister";
 
 export const metadata: Metadata = {
