@@ -27,23 +27,28 @@ Never set the R2 secret or any Supabase service-role key in a `NEXT_PUBLIC_*` va
 
 ## 3. Configure bucket CORS
 
-Add a CORS rule to the R2 bucket. Replace the example origin with the exact NetFilms frontend origin(s):
+Apply the policy in [r2-cors-policy.example.json](./r2-cors-policy.example.json). Replace the production placeholder with the exact NetFilms origin (scheme + hostname only, no path), and add Vercel preview origins only if you intend to test from them. Keep http://localhost:3000 only for local development; remove it from the production-only policy.
 
-```json
-[
-  {
-    "AllowedOrigins": ["http://localhost:3000", "https://YOUR-NETFILMS-DOMAIN"],
-    "AllowedMethods": ["PUT", "GET", "HEAD"],
-    "AllowedHeaders": ["Content-Type", "ETag"],
-    "ExposeHeaders": ["ETag"],
-    "MaxAgeSeconds": 3600
-  }
-]
-```
+The policy allows PUT for direct-to-R2 uploads, GET and HEAD for playback and object checks, Content-Type and Range request headers, and Accept-Ranges, Content-Length, Content-Range, and ETag response headers.
 
-The local development origin can be removed in production. CORS is required because the browser uploads directly to R2.
+In Cloudflare Dashboard, open R2 → your netfilms-media bucket → Settings → CORS Policy, paste the JSON array from the example file, and save it. Do not use * for origins. R2 checks the browser Origin header against an exact allowed origin; presigned URLs do not bypass browser CORS enforcement.
 
-## 4. Upload flow
+After saving, allow up to 30 seconds for propagation. Test both upload (PUT) and playback (GET) from the actual frontend origin. A successful curl request without an Origin header does not prove browser CORS is configured correctly.
+
+## 4. Verify browser playback and subtitles
+
+After a real authorized episode and a .vtt subtitle have been uploaded:
+
+1. Open the episode page from the production NetFilms origin.
+2. In browser DevTools → Network, confirm the video and .vtt requests return successfully.
+3. Confirm the subtitle response has Content-Type: text/vtt and an Access-Control-Allow-Origin matching the page origin.
+4. Open the Video.js captions/subtitles menu and select the language label (for example, Kinyarwanda).
+5. Seek forward and backward and confirm captions remain synchronized.
+6. Repeat on a current desktop browser and a mobile browser.
+
+Do not make the bucket public just to work around CORS. Keep objects private and use the short-lived signed URLs returned by the API.
+
+## 5. Upload flow
 
 1. An active owner, content manager or editor requests a signed upload URL.
 2. The API validates the Supabase user session, role, media type and declared size.
