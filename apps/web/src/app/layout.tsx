@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import "@videojs/react/video/skin.css";
 import { PwaRegister } from "./PwaRegister";
 
 export const metadata: Metadata = {
@@ -24,6 +23,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="rw">
+      <head><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@videojs/react@10.5.0/dist/default/presets/video/skin.css" /></head>
       <body><PwaRegister />{children}</body>
     </html>
   );
